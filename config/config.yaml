@@ -1,0 +1,96 @@
+# Configuration for Stock & Crypto Price Prediction
+
+# Asset Types to Track
+assets:
+  stocks:
+    - AAPL
+    - GOOGL
+    - MSFT
+    - TSLA
+  crypto:
+    - BTC-USD
+    - ETH-USD
+    - BNB-USD
+    - SOL-USD
+
+# Data Collection Settings
+data:
+  # Historical data period
+  start_date: "2019-01-01"
+  end_date: null  # null means today
+
+  # Data source
+  source: "yfinance"
+
+  # Update frequency
+  update_interval: "daily"
+
+# Feature Engineering
+features:
+  # Moving average windows
+  ma_windows: [5, 10, 20, 50]
+
+  # Volatility calculation window
+  volatility_window: 14
+
+  # Create lagged features
+  lag_days: [1, 2, 3, 5, 7]
+
+# Model Settings
+models:
+  # Train/validation/test split
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+
+  # Random state for reproducibility
+  random_state: 42
+
+  # Base models configuration
+  random_forest:
+    n_estimators: 100
+    max_depth: 10
+    min_samples_split: 5
+
+  xgboost:
+    n_estimators: 100
+    learning_rate: 0.1
+    max_depth: 6
+
+  lightgbm:
+    n_estimators: 100
+    learning_rate: 0.1
+    num_leaves: 31
+
+  svr:
+    kernel: 'rbf'
+    C: 1.0
+    epsilon: 0.1
+
+# Prediction Settings
+prediction:
+  # Target variable
+  target: "volatility"  # Options: "volatility", "price_range", "returns"
+
+  # Prediction horizon
+  horizon: 1  # days ahead
+
+# Evaluation
+evaluation:
+  # Metrics to compute
+  metrics:
+    - mae
+    - rmse
+    - r2
+    - mape
+
+  # Cross-validation folds
+  cv_folds: 5
+
+# Output Settings
+output:
+  save_models: true
+  save_predictions: true
+  model_path: "data/models/"
+  prediction_path: "data/predictions/"
+  plot_path: "data/plots/"

@@ -1,0 +1,79 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Environment variables and secrets
+.env
+.env.local
+.env.production
+*.key
+
+# Database files
+*.db
+*.sqlite
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# Logs
+*.log
+logs/
+archived_logs/
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+_ul
+_ul-*
+
+# Model cache
+*.pkl
+catboost_info/
+.sentiment_cache/
+
+# Large PDF files
+*.pdf
+
+# Node modules
+node_modules/
+package-lock.json
+
+# Archives and old files
+archived_*/
+archive/
+project_files/
+
+# Generated data
+data/raw/
+data/processed/
+data/predictions/
+plots/
+results/
+instance/
+
+# Temporary files
+*.tmp
+*.temp
+=2.6.0
+
+# Test output
+*.coverage
+htmlcov/
+
+# Large model weights
+models/*.pkl
+models/*.h5
+models/*.pt
+
+# Frontend build
+trading-platform/frontend/node_modules/
+trading-platform/frontend/build/
+trading-platform/frontend/dist/

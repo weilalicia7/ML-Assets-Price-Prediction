@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ML Asset Trading Platform</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+</head>
+<body>
+    <!-- Main View (Homepage) -->
+    <div id="main-view" class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div>
+                    <h1>📈 ML Asset Trading Platform</h1>
+                    <p class="subtitle">Real-time predictions for stocks, crypto, forex & commodities powered by ensemble ML</p>
+                </div>
+                <div class="header-right">
+                    <div class="status-indicator">
+                        <span class="status-dot" id="status-dot"></span>
+                        <span id="status-text">Checking status...</span>
+                    </div>
+                    <!-- Monitoring Stats - Compact -->
+                    <div class="monitoring-stats-compact" id="monitoring-stats">
+                        <span class="stat-item" title="Percentage of predictions served instantly from cache without retraining">
+                            💾 Cache Rate: <strong id="cache-hit-rate">--</strong>
+                        </span>
+                        <span class="stat-separator">|</span>
+                        <span class="stat-item" title="Average time to train a new ML model">
+                            ⚡ Speed: <strong id="avg-training-time">--</strong>
+                        </span>
+                        <span class="stat-separator">|</span>
+                        <span class="stat-item" title="Total models trained this session">
+                            🤖 Models: <strong id="models-cached">--</strong>
+                        </span>
+                        <span class="stat-separator">|</span>
+                        <span class="stat-item" title="Assets being monitored for data quality">
+                            📊 Monitoring: <strong id="data-quality">--</strong>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Top Picks Section -->
+        <section class="top-picks-section">
+            <div class="top-picks-header">
+                <div class="top-picks-title-row">
+                    <h2>🏆 Top 10 Trading Opportunities</h2>
+                    <div class="top-picks-actions">
+                        <button class="btn-refresh-picks" id="refresh-top-picks-btn" onclick="refreshTopPicks()" title="Force refresh (clears cache)">🔄 Refresh</button>
+                        <button class="btn-realtime-test" id="realtime-test-btn" onclick="runRealtimeTest()" title="Run real-time Yahoo Finance analysis with P/L projections">📊 Real-Time Test</button>
+                        <button class="btn-predict-trend" id="predict-trend-btn" onclick="predictBullBear()" title="Predict Bull/Bear market trend">🎯 Bull/Bear</button>
+                    </div>
+                </div>
+                <div class="regime-toggle">
+                    <button class="regime-btn" data-regime="all">All Assets</button>
+                    <button class="regime-btn active" data-regime="Stock">Stocks</button>
+                    <button class="regime-btn" data-regime="Cryptocurrency">Crypto</button>
+                    <button class="regime-btn" data-regime="Forex">Forex</button>
+                    <button class="regime-btn" data-regime="Commodity">Commodities</button>
+                    <button class="regime-btn" data-regime="China">China</button>
+                </div>
+            </div>
+            <div id="top-picks-loading" class="top-picks-loading hidden">
+                <div class="spinner-small"></div>
+                <p>Analyzing all assets...</p>
+            </div>
+            <div class="top-picks-grid">
+                <div class="top-picks-column">
+                    <h3 class="picks-title buy-title">📈 Top 10 BUY Signals</h3>
+                    <div id="top-buy-list" class="picks-list"></div>
+                </div>
+                <div class="top-picks-column">
+                    <h3 class="picks-title sell-title">📉 Top 10 SELL Signals</h3>
+                    <div id="top-sell-list" class="picks-list"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Search and Quick Info Section (Side by Side) -->
+        <div class="search-news-grid">
+            <!-- Search Section -->
+            <section class="search-section">
+                <div class="search-container">
+                    <label for="ticker-input">Search Asset or Ticker</label>
+                    <div class="search-input-wrapper">
+                        <input
+                            type="text"
+                            id="ticker-input"
+                            placeholder="e.g., Apple, NVDA, Bitcoin, Iron Ore, Gold..."
+                            autocomplete="off"
+                        />
+                        <div id="search-results" class="search-results hidden"></div>
+                    </div>
+                    <button id="analyze-btn" class="btn-primary">
+                        <span>🔮 Get ML Analysis</span>
+                    </button>
+                    <!-- Inline Loading Indicator (shown when clicking Top 10 picks) -->
+                    <div id="search-loading" class="search-loading hidden">
+                        <div class="search-loading-content">
+                            <div class="spinner-inline"></div>
+                            <span id="search-loading-text">Analyzing <strong id="loading-ticker"></strong>...</span>
+                        </div>
+                        <p class="search-loading-subtitle">Running ML models and fetching market data</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Real-Time News & Social Media -->
+            <section class="quick-info-section">
+                <div class="quick-info-container">
+                    <h3 class="quick-info-title">📰 Real-Time News & Social Media</h3>
+                    <div class="general-news-feed" id="general-news-feed">
+                        <p class="text-muted" style="padding: 20px; text-align: center;">
+                            Loading news from your watchlist and top picks... (refreshes every 1 minute)
+                        </p>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Portfolio Tracker Section - Split into two columns (Always visible) -->
+        <div class="portfolio-grid">
+            <!-- Watchlist Column -->
+            <div class="card portfolio-card">
+                <div class="portfolio-header">
+                    <h3 class="card-title">👀 My Watchlist</h3>
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        <button class="btn-refresh" onclick="loadWatchlist()">🔄 Refresh</button>
+                        <button class="btn-clear-watchlist" onclick="clearWatchlist()">🗑️ Clear</button>
+                    </div>
+                </div>
+
+                <div id="watchlist-container" class="portfolio-list"></div>
+            </div>
+
+            <!-- Mock Trading Column -->
+            <div class="card portfolio-card">
+                <div class="portfolio-header">
+                    <h3 class="card-title">💰 Mock Trading Portfolio</h3>
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        <button class="btn-refresh" onclick="loadPortfolio()">🔄 Refresh</button>
+                        <button class="btn-close-all" onclick="closeAllPositions()">💼 Close All</button>
+                        <button class="btn-reset-portfolio" onclick="resetPortfolio()">🔁 Start Over</button>
+                    </div>
+                </div>
+
+                <div id="portfolio-container" class="portfolio-list"></div>
+            </div>
+        </div>
+
+        <!-- Error Message -->
+        <div id="error" class="error-message hidden">
+            <p id="error-text"></p>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>ML-powered predictions for stocks, crypto, forex & commodities | 90+ features | Risk management | Real-time news & portfolio tracking</p>
+        </footer>
+    </div>
+
+    <!-- Analysis Layer (Full-Screen) -->
+    <div id="analysis-layer" class="analysis-layer hidden">
+        <div class="analysis-layer-header">
+            <h2 class="analysis-layer-title">ML Analysis Results</h2>
+            <button class="back-to-main-btn" onclick="showMainView()">← Back to Main</button>
+        </div>
+
+        <div class="analysis-layer-content">
+            <!-- Results Section will be moved here -->
+            <div id="results" class="results hidden">
+            <!-- Combined Company Header + System Info -->
+            <div class="company-header-combined">
+                <div class="company-info">
+                    <h2 id="company-name"></h2>
+                    <p id="company-meta"></p>
+                </div>
+                <div class="current-price">
+                    <span class="price-label">Current Price</span>
+                    <span class="price-value" id="current-price">$0.00</span>
+                </div>
+                <div class="system-info-inline">
+                    <span class="info-item"><strong>Model:</strong> <span id="model-type">EnhancedEnsemble</span></span>
+                    <span class="info-separator">|</span>
+                    <span class="info-item"><strong>Features:</strong> <span id="model-features">90</span></span>
+                    <span class="info-separator">|</span>
+                    <span class="info-item"><strong>Trained:</strong> <span id="model-trained">--</span></span>
+                </div>
+            </div>
+
+            <!-- 3-Column Compact Grid: Prediction | Trading Signal | News -->
+            <div class="analysis-grid-compact">
+                <!-- Left Column: Prediction -->
+                <div class="card prediction-card">
+                    <h3 class="card-title">📊 ML Volatility Prediction</h3>
+
+                    <div class="prediction-main">
+                        <div class="metric-large">
+                            <span class="metric-label">Predicted Volatility</span>
+                            <span class="metric-value" id="pred-vol">0.00%</span>
+                        </div>
+
+                        <div class="confidence-interval">
+                            <span class="ci-label">80% Confidence Interval</span>
+                            <div class="ci-range">
+                                <span id="ci-lower">0.00%</span>
+                                <span class="ci-separator">—</span>
+                                <span id="ci-upper">0.00%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="prediction-context">
+                        <div class="context-item">
+                            <span class="context-label">Market Regime</span>
+                            <span class="badge" id="regime-badge">UNKNOWN</span>
+                        </div>
+                        <div class="context-item">
+                            <span class="context-label">Historical Vol</span>
+                            <span class="context-value" id="hist-vol">0.00%</span>
+                        </div>
+                        <div class="context-item">
+                            <span class="context-label">Vol Percentile</span>
+                            <span class="context-value" id="vol-percentile">0th</span>
+                        </div>
+                    </div>
+
+                    <div class="direction-prediction" id="direction-pred">
+                        <div class="direction-icon" id="direction-icon">→</div>
+                        <div>
+                            <p class="direction-text" id="direction-text">Neutral</p>
+                            <p class="direction-confidence">Confidence: <span id="direction-conf">0%</span></p>
+                        </div>
+                    </div>
+
+                    <div class="card-footer">
+                        <small>Based on <span id="features-count">90</span> ML features from ensemble models</small>
+                    </div>
+                </div>
+
+                <!-- Right Column: Trading Signal -->
+                <div class="card signal-card">
+                    <h3 class="card-title">🎯 Trading Signal</h3>
+
+                    <!-- ML Model Prediction (Raw Signal) -->
+                    <div class="dual-signal-section model-prediction-section">
+                        <div class="dual-signal-header">
+                            <span class="dual-signal-label">ML Model Prediction</span>
+                        </div>
+                        <div class="dual-signal-content">
+                            <span class="model-direction-badge" id="model-direction-badge">HOLD</span>
+                            <span class="model-confidence">Confidence: <span id="model-direction-conf">0%</span></span>
+                        </div>
+                        <p class="dual-signal-description" id="model-prediction-desc">Raw directional signal from ML ensemble</p>
+                    </div>
+
+                    <!-- Trading Strategy (Risk-Filtered) -->
+                    <div class="dual-signal-section strategy-section">
+                        <div class="dual-signal-header">
+                            <span class="dual-signal-label">Trading Strategy</span>
+                        </div>
+                        <div class="signal-header">
+                            <div class="signal-action">
+                                <span class="action-badge" id="action-badge">HOLD</span>
+                                <span class="signal-confidence">Confidence: <span id="signal-conf">0%</span></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Signal Difference Explanation (shown when signals differ) -->
+                    <div class="signal-difference-box hidden" id="signal-difference-box">
+                        <p id="signal-difference-text"></p>
+                    </div>
+
+                    <div class="signal-reason" id="signal-reason">
+                        <p></p>
+                    </div>
+
+                    <!-- Always show Add to Watchlist button -->
+                    <button class="btn-add-portfolio" id="add-to-portfolio-btn">Add to Watchlist</button>
+
+                    <!-- Manual Trading Buttons (always visible) -->
+                    <div class="manual-trading-buttons">
+                        <button class="btn-manual-buy" id="manual-buy-btn">BUY</button>
+                        <button class="btn-manual-sell" id="manual-sell-btn">SELL</button>
+                    </div>
+
+                    <!-- Execute Trade button (shown for BUY/SELL signals) -->
+                    <button class="btn-execute-trade hidden" id="execute-trade-btn">Execute Signal Trade</button>
+
+                    <!-- Position Details (shown for BUY/SELL) -->
+                    <div class="position-details hidden" id="position-details">
+                        <h4>Position Details</h4>
+
+                        <div class="position-grid">
+                            <div class="position-item">
+                                <div>
+                                    <span class="pos-label">Size</span>
+                                    <span class="pos-value" id="pos-shares">0 shares</span>
+                                </div>
+                            </div>
+                            <div class="position-item">
+                                <div>
+                                    <span class="pos-label">Entry</span>
+                                    <span class="pos-value" id="pos-entry">$0.00</span>
+                                </div>
+                            </div>
+                            <div class="position-item">
+                                <div>
+                                    <span class="pos-label">Stop Loss</span>
+                                    <span class="pos-value text-danger" id="pos-stop">$0.00</span>
+                                </div>
+                            </div>
+                            <div class="position-item">
+                                <div>
+                                    <span class="pos-label">Take Profit</span>
+                                    <span class="pos-value text-success" id="pos-target">$0.00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="risk-metrics">
+                            <div class="risk-item">
+                                <span class="risk-label">Risk Amount</span>
+                                <span class="risk-value text-danger" id="risk-amount">$0.00</span>
+                            </div>
+                            <div class="risk-item">
+                                <span class="risk-label">Potential Profit</span>
+                                <span class="risk-value text-success" id="potential-profit">$0.00</span>
+                            </div>
+                            <div class="risk-item">
+                                <span class="risk-label">Risk/Reward</span>
+                                <span class="risk-value" id="risk-reward">1:0.0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-footer">
+                        <small>Updated: <span id="signal-timestamp">--</span></small>
+                    </div>
+                </div>
+
+                <!-- Right Column: Real-Time News -->
+                <div class="card news-card-analysis">
+                    <h3 class="card-title">📰 Real-Time News & Social Media</h3>
+                    <div class="news-feed-analysis" id="analysis-news-feed">
+                        <p class="text-muted" style="padding: 20px; text-align: center;">
+                            Loading news...
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Price Charts (Two Charts Side by Side) -->
+            <div class="charts-grid">
+                <div class="card chart-card chart-card-main">
+                    <h3 class="card-title">📈 1-Year Price Chart</h3>
+                    <div id="price-chart"></div>
+                </div>
+                <div class="card chart-card chart-card-intraday">
+                    <h3 class="card-title">⚡ 1-Day Real-Time Chart</h3>
+                    <div id="intraday-chart"></div>
+                </div>
+            </div>
+
+        </div>
+        </div>
+    </div>
+
+    <!-- 3RD LAYER: Real-Time Test Modal -->
+    <div id="realtime-test-modal" class="modal-overlay hidden">
+        <div class="modal-container modal-xlarge">
+            <div class="modal-header">
+                <h3>📊 Real-Time Yahoo Finance Analysis</h3>
+                <span class="modal-regime-badge" id="realtime-regime-badge">Stock</span>
+                <button class="modal-close-btn" onclick="closeRealtimeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="realtime-test-results">
+                <div class="modal-loading">
+                    <div class="spinner-large"></div>
+                    <p>Fetching real-time data from Yahoo Finance...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3RD LAYER: Bull/Bear Prediction Modal -->
+    <div id="trend-prediction-modal" class="modal-overlay hidden">
+        <div class="modal-container modal-large">
+            <div class="modal-header">
+                <h3>🎯 Bull/Bear Market Prediction</h3>
+                <span class="modal-regime-badge" id="trend-regime-badge">Stock</span>
+                <button class="modal-close-btn" onclick="closeTrendModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="trend-prediction-results">
+                <div class="modal-loading">
+                    <div class="spinner-large"></div>
+                    <p>Analyzing market conditions...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

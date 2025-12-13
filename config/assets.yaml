@@ -1,0 +1,306 @@
+# Asset Configuration by Domain/Sector
+# Users can select which domains to track for prediction
+
+# STOCK SECTORS
+stocks:
+  technology:
+    - AAPL    # Apple
+    - MSFT    # Microsoft
+    - GOOGL   # Alphabet/Google
+    - NVDA    # NVIDIA
+    - META    # Meta/Facebook
+    - TSLA    # Tesla
+    - AMD     # AMD
+    - INTC    # Intel
+    - ORCL    # Oracle
+    - CRM     # Salesforce
+
+  semiconductors:
+    - NVDA    # NVIDIA
+    - AMD     # AMD
+    - INTC    # Intel
+    - TSM     # Taiwan Semiconductor
+    - ASML    # ASML Holding
+    - QCOM    # Qualcomm
+    - AVGO    # Broadcom
+    - MU      # Micron Technology
+    - TXN     # Texas Instruments
+    - AMAT    # Applied Materials
+
+  oil_energy:
+    - XOM     # Exxon Mobil
+    - CVX     # Chevron
+    - COP     # ConocoPhillips
+    - SLB     # Schlumberger
+    - EOG     # EOG Resources
+    - MPC     # Marathon Petroleum
+    - PSX     # Phillips 66
+    - VLO     # Valero Energy
+    - OXY     # Occidental Petroleum
+    - BP      # BP plc
+
+  renewable_energy:
+    - NEE     # NextEra Energy
+    - ENPH    # Enphase Energy
+    - FSLR    # First Solar
+    - SEDG    # SolarEdge Technologies
+    - RUN     # Sunrun
+    - PLUG    # Plug Power
+    - BE      # Bloom Energy
+    - NOVA    # Sunnova Energy
+
+  real_estate:
+    - AMT     # American Tower
+    - PLD     # Prologis
+    - CCI     # Crown Castle
+    - EQIX    # Equinix
+    - PSA     # Public Storage
+    - SPG     # Simon Property Group
+    - O       # Realty Income
+    - WELL    # Welltower
+    - AVB     # AvalonBay Communities
+    - DLR     # Digital Realty Trust
+
+  banking_finance:
+    - JPM     # JPMorgan Chase
+    - BAC     # Bank of America
+    - WFC     # Wells Fargo
+    - C       # Citigroup
+    - GS      # Goldman Sachs
+    - MS      # Morgan Stanley
+    - BLK     # BlackRock
+    - SCHW    # Charles Schwab
+    - USB     # U.S. Bancorp
+    - PNC     # PNC Financial
+
+  healthcare:
+    - JNJ     # Johnson & Johnson
+    - UNH     # UnitedHealth Group
+    - PFE     # Pfizer
+    - ABBV    # AbbVie
+    - TMO     # Thermo Fisher
+    - MRK     # Merck
+    - ABT     # Abbott Laboratories
+    - DHR     # Danaher
+    - LLY     # Eli Lilly
+    - BMY     # Bristol Myers Squibb
+
+  consumer_goods:
+    - AMZN    # Amazon
+    - WMT     # Walmart
+    - COST    # Costco
+    - HD      # Home Depot
+    - NKE     # Nike
+    - MCD     # McDonald's
+    - SBUX    # Starbucks
+    - TGT     # Target
+    - LOW     # Lowe's
+    - PG      # Procter & Gamble
+
+  automotive:
+    - TSLA    # Tesla
+    - F       # Ford
+    - GM      # General Motors
+    - TM      # Toyota
+    - HMC     # Honda
+    - RIVN    # Rivian
+    - LCID    # Lucid Motors
+    - NIO     # NIO Inc
+
+  aerospace_defense:
+    - BA      # Boeing
+    - LMT     # Lockheed Martin
+    - RTX     # Raytheon Technologies
+    - NOC     # Northrop Grumman
+    - GD      # General Dynamics
+    - LHX     # L3Harris Technologies
+
+  entertainment_media:
+    - DIS     # Disney
+    - NFLX    # Netflix
+    - CMCSA   # Comcast
+    - WBD     # Warner Bros Discovery
+    - PARA    # Paramount Global
+
+  commodities_mining:
+    - BHP     # BHP Group (Iron Ore, Copper)
+    - RIO     # Rio Tinto (Iron Ore, Aluminum)
+    - VALE    # Vale S.A. (Iron Ore, Nickel)
+    - FCX     # Freeport-McMoRan (Copper, Gold)
+    - NEM     # Newmont (Gold, Copper)
+    - AA      # Alcoa (Aluminum, Alumina)
+    - SCCO    # Southern Copper (Copper)
+    - TECK    # Teck Resources (Copper, Zinc)
+    - CLF     # Cleveland-Cliffs (Iron Ore, Steel)
+    - MT      # ArcelorMittal (Steel, Iron Ore)
+
+  china_hong_kong:
+    - 0700.HK   # Tencent (Tech)
+    - 9988.HK   # Alibaba (E-commerce)
+    - 3690.HK   # Meituan (Food Delivery)
+    - 1211.HK   # BYD (EV)
+    - 2318.HK   # Ping An Insurance
+    - 0941.HK   # China Mobile
+    - 1398.HK   # ICBC
+    - 0939.HK   # China Construction Bank
+
+  china_shanghai:
+    - 600519.SS # Kweichow Moutai (Liquor)
+    - 601318.SS # Ping An Insurance
+    - 601398.SS # ICBC
+    - 600036.SS # China Merchants Bank
+    - 600276.SS # Hengrui Medicine
+    - 600887.SS # Yili Group (Dairy)
+
+  china_shenzhen:
+    - 000858.SZ # Wuliangye (Liquor)
+    - 000333.SZ # Midea Group (Appliances)
+    - 002594.SZ # BYD Company
+    - 300750.SZ # Contemporary Amperex (Batteries)
+    - 000002.SZ # China Vanke (Real Estate)
+
+# CRYPTOCURRENCY SECTORS
+crypto:
+  major_coins:
+    - BTC-USD   # Bitcoin
+    - ETH-USD   # Ethereum
+    - BNB-USD   # Binance Coin
+    - XRP-USD   # Ripple
+    - ADA-USD   # Cardano
+    - SOL-USD   # Solana
+    - DOGE-USD  # Dogecoin
+    - MATIC-USD # Polygon
+
+  defi:
+    - UNI-USD   # Uniswap
+    - LINK-USD  # Chainlink
+    - AAVE-USD  # Aave
+    - MKR-USD   # Maker
+    - COMP-USD  # Compound
+
+  layer1:
+    - ETH-USD   # Ethereum
+    - SOL-USD   # Solana
+    - ADA-USD   # Cardano
+    - AVAX-USD  # Avalanche
+    - DOT-USD   # Polkadot
+    - ATOM-USD  # Cosmos
+
+  stablecoins:
+    - USDT-USD  # Tether
+    - USDC-USD  # USD Coin
+    - DAI-USD   # Dai
+
+# MARKET INDICES
+indices:
+  us_markets:
+    - ^GSPC    # S&P 500
+    - ^DJI     # Dow Jones
+    - ^IXIC    # NASDAQ
+    - ^RUT     # Russell 2000
+
+  global_markets:
+    - ^FTSE    # FTSE 100 (UK)
+    - ^N225    # Nikkei 225 (Japan)
+    - ^HSI     # Hang Seng (Hong Kong)
+    - ^GDAXI   # DAX (Germany)
+
+  sector_indices:
+    - XLK      # Technology Select Sector
+    - XLE      # Energy Select Sector
+    - XLF      # Financial Select Sector
+    - XLV      # Health Care Select Sector
+    - XLI      # Industrial Select Sector
+
+# COMMODITIES
+commodities:
+  precious_metals:
+    - GC=F     # Gold Futures
+    - SI=F     # Silver Futures
+    - PL=F     # Platinum Futures
+
+  energy:
+    - CL=F     # Crude Oil Futures
+    - NG=F     # Natural Gas Futures
+
+  agriculture:
+    - ZC=F     # Corn Futures
+    - ZW=F     # Wheat Futures
+    - ZS=F     # Soybean Futures
+
+# ETFs
+etfs:
+  broad_market:
+    - SPY      # S&P 500 ETF
+    - QQQ      # NASDAQ-100 ETF
+    - DIA      # Dow Jones ETF
+    - IWM      # Russell 2000 ETF
+
+  sector:
+    - XLK      # Technology
+    - XLE      # Energy
+    - XLF      # Financials
+    - XLRE     # Real Estate
+    - XLV      # Healthcare
+
+  crypto:
+    - BITO     # Bitcoin Strategy ETF
+    - ETHE     # Ethereum ETF
+
+# PRESETS - Quick selection options
+presets:
+  tech_focus:
+    - AAPL
+    - MSFT
+    - GOOGL
+    - NVDA
+    - META
+
+  energy_focus:
+    - XOM
+    - CVX
+    - COP
+    - SLB
+    - NEE
+
+  crypto_major:
+    - BTC-USD
+    - ETH-USD
+    - BNB-USD
+    - SOL-USD
+
+  diversified:
+    - AAPL     # Tech
+    - XOM      # Energy
+    - JPM      # Finance
+    - JNJ      # Healthcare
+    - SPY      # Market Index
+    - BTC-USD  # Crypto
+
+  real_estate_focus:
+    - AMT
+    - PLD
+    - EQIX
+    - PSA
+    - O
+
+  semiconductor_focus:
+    - NVDA
+    - AMD
+    - TSM
+    - ASML
+    - INTC
+
+  commodities_focus:
+    - BHP      # Iron Ore
+    - RIO      # Iron Ore
+    - VALE     # Iron Ore
+    - FCX      # Copper
+    - GC=F     # Gold Futures
+
+  china_focus:
+    - 0700.HK  # Tencent (Hong Kong)
+    - 9988.HK  # Alibaba (Hong Kong)
+    - 600519.SS # Kweichow Moutai (Shanghai)
+    - 000858.SZ # Wuliangye (Shenzhen)
+    - 1211.HK  # BYD (Hong Kong)

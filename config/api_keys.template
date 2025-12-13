@@ -1,0 +1,92 @@
+# API Keys Configuration Template
+# Copy this file to 'api_keys.env' and fill in your keys
+# DO NOT commit api_keys.env to version control!
+
+# ==============================================
+# ALPHA VANTAGE (Free - Get at https://www.alphavantage.co/support/#api-key)
+# ==============================================
+# Provides: Stocks, Forex, Crypto, Technical Indicators
+# Free Tier: 5 calls/min, 500 calls/day
+ALPHA_VANTAGE_KEY=your_alpha_vantage_key_here
+
+# ==============================================
+# FRED - Federal Reserve Economic Data (Free - Get at https://fred.stlouisfed.org/)
+# ==============================================
+# Provides: Economic indicators (Fed rates, inflation, GDP, unemployment, etc.)
+# Free Tier: Very generous limits
+FRED_API_KEY=your_fred_key_here
+
+# ==============================================
+# POLYGON.IO (Free tier available - Get at https://polygon.io/)
+# ==============================================
+# Provides: Stocks, Options, Forex, Crypto
+# Free Tier: 5 calls/min, delayed data
+POLYGON_API_KEY=your_polygon_key_here
+
+# ==============================================
+# QUANDL/NASDAQ DATA LINK (Optional - Get at https://data.nasdaq.com/)
+# ==============================================
+# Provides: Financial, economic, and alternative data
+QUANDL_API_KEY=your_quandl_key_here
+
+# ==============================================
+# NO API KEY NEEDED (Always Available)
+# ==============================================
+# Yahoo Finance (yfinance) - No key needed
+# CoinGecko - No key needed, 50 calls/min
+
+# ==============================================
+# HOW TO USE
+# ==============================================
+# Method 1: Set as environment variables
+#   export ALPHA_VANTAGE_KEY=your_key
+#   export FRED_API_KEY=your_key
+#
+# Method 2: Use python-dotenv
+#   pip install python-dotenv
+#   Rename this file to 'api_keys.env'
+#   Load in Python:
+#     from dotenv import load_dotenv
+#     load_dotenv('config/api_keys.env')
+#
+# Method 3: Pass directly to fetcher
+#   fetcher = MultiSourceDataFetcher(alpha_vantage_key='your_key')
+
+# ==============================================
+# SOCIAL SENTIMENT APIs (High Impact for Meme Stocks & Crypto!)
+# ==============================================
+
+# REDDIT API (FREE - Get at https://www.reddit.com/prefs/apps)
+# Essential for tracking r/wallstreetbets, r/stocks, r/CryptoCurrency
+# Impact: CRITICAL for meme stocks (GME, AMC) and crypto
+REDDIT_CLIENT_ID=your_reddit_client_id
+REDDIT_CLIENT_SECRET=your_reddit_secret
+
+# TWITTER API v2 (FREE tier available - Get at https://developer.twitter.com/)
+# Track ticker mentions, influencer tweets (Elon, Cathie Wood, etc.)
+# Free tier: 500K tweets/month
+TWITTER_BEARER_TOKEN=your_twitter_bearer_token
+
+# StockTwits - No API key needed! Free to use
+# Google Trends (PyTrends) - No API key needed! Free to use
+
+# ==============================================
+# PRIORITY ORDER FOR API KEYS
+# ==============================================
+# 1. Essential (Free & Most Useful):
+#    - REDDIT_CLIENT_ID/SECRET - CRITICAL for meme stocks & crypto
+#    - ALPHA_VANTAGE_KEY - Best for stocks and backup data
+#    - FRED_API_KEY - Essential for economic indicators
+#
+# 2. High Priority (Free & Very Useful):
+#    - TWITTER_BEARER_TOKEN - Influencer tracking, breaking news
+#
+# 3. Optional (Enhanced Coverage):
+#    - POLYGON_API_KEY - Additional stock data source
+#    - QUANDL_API_KEY - Specialized financial data
+#
+# 4. Not Needed (Built-in Free):
+#    - Yahoo Finance - Already works without key
+#    - CoinGecko - Already works without key
+#    - StockTwits - Already works without key
+#    - Google Trends - Already works without key
