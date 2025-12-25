@@ -46,22 +46,25 @@
 
         <!-- Top Picks Section -->
         <section class="top-picks-section">
-            <div class="top-picks-header">
-                <div class="top-picks-title-row">
-                    <h2>🏆 Top 10 Trading Opportunities</h2>
-                    <div class="top-picks-actions">
-                        <button class="btn-refresh-picks" id="refresh-top-picks-btn" onclick="refreshTopPicks()" title="Force refresh (clears cache)">🔄 Refresh</button>
-                        <button class="btn-realtime-test" id="realtime-test-btn" onclick="runRealtimeTest()" title="Run real-time Yahoo Finance analysis with P/L projections">📊 Real-Time Test</button>
-                        <button class="btn-predict-trend" id="predict-trend-btn" onclick="predictBullBear()" title="Predict Bull/Bear market trend">🎯 Bull/Bear</button>
+            <div class="top-picks-header top-picks-header-inline">
+                <div class="top-picks-title-compact">
+                    <h2>🏆 Top 10</h2>
+                    <div class="top-picks-actions-compact">
+                        <button class="btn-action-sm" id="refresh-top-picks-btn" onclick="refreshTopPicks()" title="Force refresh top 10 picks">Refresh</button>
+                        <button class="btn-action-sm" id="realtime-test-btn" onclick="runRealtimeTest()" title="Real-time Yahoo Finance analysis">Test</button>
+                        <button class="btn-action-sm" id="predict-trend-btn" onclick="predictBullBear()" title="Bull/Bear market prediction">Trend</button>
                     </div>
                 </div>
-                <div class="regime-toggle">
-                    <button class="regime-btn" data-regime="all">All Assets</button>
+                <div class="regime-toggle regime-toggle-inline">
+                    <button class="regime-btn" data-regime="all">All</button>
                     <button class="regime-btn active" data-regime="Stock">Stocks</button>
                     <button class="regime-btn" data-regime="Cryptocurrency">Crypto</button>
                     <button class="regime-btn" data-regime="Forex">Forex</button>
                     <button class="regime-btn" data-regime="Commodity">Commodities</button>
+                    <button class="regime-btn" data-regime="ETF">ETF</button>
                     <button class="regime-btn" data-regime="China">China</button>
+                    <button class="regime-btn ipo-btn" data-regime="US_IPO" title="US IPOs and New Stocks">🆕 US IPO</button>
+                    <button class="regime-btn ipo-btn" data-regime="China_IPO" title="China IPOs and New Stocks">🆕 China IPO</button>
                 </div>
             </div>
             <div id="top-picks-loading" class="top-picks-loading hidden">
@@ -352,6 +355,29 @@
                             Loading news...
                         </p>
                     </div>
+                </div>
+            </div>
+
+            <!-- Quality Filter Checks (China Model Fixing2) - Only shown for China stocks -->
+            <div class="card quality-filter-card hidden" id="quality-filter-section">
+                <h3 class="card-title">🔍 Quality Filter Checks (China Model F2)</h3>
+                <div class="quality-filter-grid">
+                    <table class="quality-filter-table">
+                        <thead>
+                            <tr>
+                                <th>Check</th>
+                                <th>Value</th>
+                                <th>Threshold</th>
+                                <th>Result</th>
+                            </tr>
+                        </thead>
+                        <tbody id="quality-filter-tbody">
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="quality-filter-summary" id="quality-filter-summary">
+                    <!-- Overall pass/fail summary -->
                 </div>
             </div>
 

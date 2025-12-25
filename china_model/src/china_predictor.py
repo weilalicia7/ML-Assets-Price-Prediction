@@ -8,6 +8,8 @@ Key Differences from US Model:
 2. Regime detection with dynamic weighting
 3. Validation-based ensemble weights (not equal 50/50)
 4. Category-specific feature filtering
+5. Lag-free transition detection for early regime change detection
+6. Adaptive profit maximization with regime-specific parameters
 
 Usage:
     from src.models.china_predictor import ChinaMarketPredictor
@@ -15,6 +17,9 @@ Usage:
     model = ChinaMarketPredictor()
     model.fit(X_train, y_train)
     predictions = model.predict(X_test)
+
+    # With transition detection
+    signals = model.get_trading_signals(X_test, market_data)
 
 # ============================================================================
 # PROTECTED CORE MODEL - DO NOT MODIFY WITHOUT USER PERMISSION
@@ -25,7 +30,7 @@ Usage:
 
 import pandas as pd
 import numpy as np
-from typing import Optional
+from typing import Optional, Dict, List, Any
 
 # Import base models
 from src.models.hybrid_ensemble import HybridEnsemblePredictor
@@ -36,6 +41,19 @@ from src.features.technical_features import TechnicalFeatureEngineer
 from src.features.volatility_features import VolatilityFeatureEngineer
 from src.features.regime_detection import VolatilityRegimeDetector, TrendRegimeDetector
 from src.features.liquidity_features import LiquidityFeatureEngineer, TransactionCostModel
+
+# Import lag-free transition detection (Fix 62 China adaptation)
+try:
+    from china_model.src.china_lag_free_transition import (
+        ChinaLagFreeTransitionDetector,
+        integrate_transition_detection,
+        ChinaTransitionOutput
+    )
+    from china_model.src.china_adaptive_profit_maximizer import ChinaAdaptiveProfitMaximizer
+    TRANSITION_DETECTION_AVAILABLE = True
+except ImportError:
+    TRANSITION_DETECTION_AVAILABLE = False
+    print("[WARNING] Lag-free transition detection not available - running without it")
 
 
 class ChinaMarketPredictor:
@@ -83,7 +101,8 @@ class ChinaMarketPredictor:
     ]
 
     def __init__(self, use_regime_detection=True, use_validation_weighting=True,
-                 reduced_features=True, tree_weight=0.7):
+                 reduced_features=True, tree_weight=0.7, use_lag_free_transition=True,
+                 base_capital=100000):
         """
         Initialize China market predictor with PDF improvements.
 
@@ -92,11 +111,15 @@ class ChinaMarketPredictor:
             use_validation_weighting: Use validation performance to weight models
             reduced_features: PDF REC 1 - Use only 20-30 core features (default: True)
             tree_weight: PDF REC 3 - Weight for tree models vs neural (default: 0.7 for 70/30)
+            use_lag_free_transition: Enable lag-free transition detection (Fix 62 adaptation)
+            base_capital: Base capital for position sizing (default: 100000)
         """
         self.use_regime_detection = use_regime_detection
         self.use_validation_weighting = use_validation_weighting
         self.reduced_features = reduced_features  # PDF REC 1
         self.tree_weight = tree_weight  # PDF REC 3 (70% tree, 30% neural)
+        self.use_lag_free_transition = use_lag_free_transition
+        self.base_capital = base_capital
 
         # Initialize base hybrid ensemble with custom tree weight
         self.base_model = HybridEnsemblePredictor()
@@ -111,6 +134,20 @@ class ChinaMarketPredictor:
         self.vol_regime_detector = VolatilityRegimeDetector(n_regimes=4, method='gmm') if use_regime_detection else None
         self.trend_regime_detector = TrendRegimeDetector(lookback=60) if use_regime_detection else None
 
+        # Initialize lag-free transition detection (Fix 62 adaptation)
+        self.transition_detector = None
+        self.profit_maximizer = None
+        if use_lag_free_transition and TRANSITION_DETECTION_AVAILABLE:
+            self.transition_detector = ChinaLagFreeTransitionDetector()
+            self.profit_maximizer = ChinaAdaptiveProfitMaximizer(base_capital=base_capital)
+            print(f"  [LAG-FREE] Transition detection enabled")
+        elif use_lag_free_transition and not TRANSITION_DETECTION_AVAILABLE:
+            print(f"  [WARNING] Lag-free transition requested but module not available")
+
+        # Current regime state (for transition tracking)
+        self.current_regime = 'NEUTRAL'
+        self.regime_history = []
+
         # Store validation performance
         self.validation_performance = {
             'old_model_accuracy': None,
@@ -123,6 +160,7 @@ class ChinaMarketPredictor:
         print(f"  - Reduced features: {reduced_features} (30 core features vs 114)")
         print(f"  - Tree/Neural weights: {tree_weight*100:.0f}/{(1-tree_weight)*100:.0f}")
         print(f"  - Regime detection: {use_regime_detection}")
+        print(f"  - Lag-free transition: {use_lag_free_transition and TRANSITION_DETECTION_AVAILABLE}")
 
     def add_features(self, df: pd.DataFrame, ticker: Optional[str] = None) -> pd.DataFrame:
         """
@@ -366,6 +404,137 @@ class ChinaMarketPredictor:
 
         return predictions
 
+    def detect_transition(self, market_data: pd.DataFrame) -> Optional[Dict]:
+        """
+        Detect regime transitions using lag-free detection.
+
+        Args:
+            market_data: DataFrame with OHLCV data
+
+        Returns:
+            Dict with transition info or None if not available
+        """
+        if self.transition_detector is None:
+            return None
+
+        try:
+            transition = self.transition_detector.detect_transition(
+                market_data,
+                current_regime=self.current_regime
+            )
+
+            # Update regime if transition confirmed
+            if transition.is_confirmed:
+                if transition.transition_type == 'TRANSITION_TO_BULL':
+                    self.current_regime = 'BULL'
+                elif transition.transition_type == 'TRANSITION_TO_BEAR':
+                    self.current_regime = 'BEAR'
+                elif transition.transition_type == 'HIGH_VOLATILITY':
+                    self.current_regime = 'HIGH_VOL'
+
+                self.regime_history.append({
+                    'regime': self.current_regime,
+                    'date': market_data.index[-1] if hasattr(market_data.index, '__getitem__') else None,
+                    'confidence': transition.confidence
+                })
+
+            return {
+                'transition_type': transition.transition_type,
+                'confidence': transition.confidence,
+                'is_transition': transition.is_transition,
+                'signals_detected': transition.signals_detected,
+                'is_confirmed': transition.is_confirmed,
+                'blend_factor': transition.blend_factor,
+                'allocation_adjustment': transition.recommended_allocation_adjustment,
+                'actions': transition.recommended_actions,
+                'current_regime': self.current_regime
+            }
+        except Exception as e:
+            print(f"[WARNING] Transition detection failed: {e}")
+            return None
+
+    def get_trading_signals(self, X: pd.DataFrame, market_data: pd.DataFrame,
+                           raw_signals: Optional[List[Dict]] = None) -> Dict[str, Any]:
+        """
+        Get trading signals with lag-free transition detection and profit optimization.
+
+        Args:
+            X: Feature DataFrame for prediction
+            market_data: Raw OHLCV market data
+            raw_signals: Optional list of raw trading signals
+
+        Returns:
+            Dict with predictions, regime info, position sizing, and recommendations
+        """
+        # Get base predictions
+        predictions = self.predict(X)
+
+        # Detect transitions
+        transition_info = self.detect_transition(market_data)
+
+        # Calculate volatility metrics from market data
+        volatility_20d = 0.0
+        hsi_return_20d = 0.0
+        hsi_return_5d = 0.0
+
+        if 'Close' in market_data.columns and len(market_data) >= 20:
+            returns = market_data['Close'].pct_change()
+            volatility_20d = returns.tail(20).std() * np.sqrt(252)
+
+        if 'hsi_return' in market_data.columns:
+            hsi_return_20d = market_data['hsi_return'].tail(20).mean() if len(market_data) >= 20 else 0
+            hsi_return_5d = market_data['hsi_return'].tail(5).mean() if len(market_data) >= 5 else 0
+
+        # Apply profit maximization if available
+        profit_guidance = None
+        if self.profit_maximizer is not None and raw_signals is not None:
+            try:
+                profit_guidance = self.profit_maximizer.execute_strategy(
+                    signals=raw_signals,
+                    market_data=market_data,
+                    volatility_20d=volatility_20d,
+                    hsi_return_20d=hsi_return_20d,
+                    hsi_return_5d=hsi_return_5d
+                )
+            except Exception as e:
+                print(f"[WARNING] Profit maximization failed: {e}")
+
+        # Build response
+        result = {
+            'predictions': predictions,
+            'regime': {
+                'current': self.current_regime,
+                'history': self.regime_history[-10:] if self.regime_history else []  # Last 10 transitions
+            },
+            'transition': transition_info,
+            'profit_guidance': profit_guidance,
+            'volatility_metrics': {
+                'volatility_20d': volatility_20d,
+                'hsi_return_20d': hsi_return_20d,
+                'hsi_return_5d': hsi_return_5d
+            }
+        }
+
+        # Add position sizing recommendations
+        if transition_info:
+            result['position_sizing'] = {
+                'regime_allocation': self._get_regime_allocation(),
+                'adjustment_factor': transition_info.get('allocation_adjustment', 1.0),
+                'blend_factor': transition_info.get('blend_factor', 1.0)
+            }
+
+        return result
+
+    def _get_regime_allocation(self) -> Dict[str, float]:
+        """Get allocation parameters based on current regime."""
+        regime_params = {
+            'BULL': {'max_allocation': 0.95, 'max_positions': 6, 'position_cap': 0.30, 'min_ev': 0.5},
+            'BEAR': {'max_allocation': 0.70, 'max_positions': 4, 'position_cap': 0.20, 'min_ev': 1.0},
+            'HIGH_VOL': {'max_allocation': 0.50, 'max_positions': 3, 'position_cap': 0.15, 'min_ev': 2.0},
+            'NEUTRAL': {'max_allocation': 0.85, 'max_positions': 5, 'position_cap': 0.25, 'min_ev': 0.7}
+        }
+        return regime_params.get(self.current_regime, regime_params['NEUTRAL'])
+
     def get_model_info(self) -> dict:
         """
         Get information about model configuration.
@@ -390,6 +559,11 @@ class ChinaMarketPredictor:
                 'new_model_weight': self.validation_performance['new_model_weight'],
                 'old_model_accuracy': self.validation_performance['old_model_accuracy'],
                 'new_model_accuracy': self.validation_performance['new_model_accuracy']
+            },
+            'lag_free_transition': {
+                'enabled': self.transition_detector is not None,
+                'current_regime': self.current_regime,
+                'transitions_detected': len(self.regime_history)
             },
             'optimization_for': 'Chinese markets (HK, Shanghai, Shenzhen)',
             'expected_performance': {

@@ -1,6 +1,77 @@
 # US/International Model - Mathematical Calculations
 
-**Last Updated:** 2025-12-02
+**Last Updated:** 2025-12-23
+
+---
+
+## CRITICAL ISSUES (Investigation 2025-12-23)
+
+### Problem Summary
+US stock predictions are currently **unreliable** with the following observed metrics:
+- **R² = -0.0001** (worse than random prediction)
+- **MAE = 0.078** (7.8% error on ~1% daily moves)
+- **Profit Score = 23.3** with Multiplier = 0.735x (too conservative)
+
+### Root Causes Identified
+
+#### 1. Feature Engineering Mismatch
+**Location:** `webapp.py` lines 353-399
+
+```python
+# Problem: Silent failure when macro features unavailable
+try:
+    macro_eng = SelectiveMacroFeatureEngineer()
+    df = macro_eng.add_all_features(df)
+except Exception as e:
+    logger.warning(f"[FEATURES] Failed to add US macro features: {e}")
+    # CONTINUES WITHOUT MACRO FEATURES - causes train/test mismatch!
+```
+
+**Impact:** Model trained on 100+ features but predicts with 30-50 features.
+
+#### 2. Missing Features Filled with Zero
+**Location:** `webapp.py` lines 2254-2267
+
+```python
+# Problem: Missing features replaced with 0
+for col in missing_features:
+    data_features[col] = np.nan
+X_latest = X_latest.fillna(0)  # VIX=0 is WRONG (should be ~15-20)
+```
+
+**Impact:** Features like VIX (normally 10-30) become 0, distorting predictions.
+
+#### 3. Conservative Profit Regime
+**Location:** `src/features/profit_maximizing_regime.py` lines 309-393
+
+```python
+# Problem: All 4 conditions must be met for high score
+momentum_score = min(abs(momentum_5d) * 10, 30)        # Needs high momentum
+volume_score = 25 if volume_ratio > 1.5 else partial   # Needs 1.5x volume
+rsi_score = 25 if 40 < rsi < 70 else partial           # Needs RSI sweet spot
+volatility_score = 20 if volatility < 0.30 else partial # Needs low vol
+
+# Result: Most stocks score 20-30 out of 100
+# Multiplier = 0.5 + (score * 0.0083) = 0.66-0.75x (too low!)
+```
+
+#### 4. Too Many Features (Overfitting)
+- **US Model:** 100-114 features
+- **China Model:** 10-30 features (works better)
+- More features = worse generalization on limited training data
+
+### Recommended Fixes
+
+| Priority | Fix | Location |
+|----------|-----|----------|
+| P0 | Don't fill missing features with 0 - use historical means | webapp.py:2258 |
+| P0 | Require macro features or raise error | webapp.py:353-358 |
+| P1 | Reduce feature count to 30-40 core features | webapp.py:1150 |
+| P1 | Relax profit score requirements (don't need all 4 conditions) | profit_maximizing_regime.py:309-365 |
+| P2 | Use validation-weighted ensemble like China model | ensemble_model.py |
+| P2 | Add model MAE to SNR formula for confidence | webapp.py:2389 |
+
+---
 
 ## Overview
 
@@ -375,13 +446,50 @@ confidence = 70.4% (≥65%)
 
 | Aspect | US/Intl Model | China Model |
 |--------|---------------|-------------|
-| **Ensemble** | HybridEnsemble (LGBM+XGB+LSTM+CNN) | CatBoost + XGBoost |
-| **Features** | VIX, SPY, DXY, GLD correlations | CSI300, CNY, HSI correlations |
-| **Phase 1-6** | Not applied | Fully applied |
-| **DeepSeek** | Not used | Used for sentiment |
+| **Ensemble** | HybridEnsemble (LGBM+XGB+LSTM+CNN) | 70% Tree + 30% Neural |
+| **Features** | 100-114 features (too many) | 10-30 features (optimized) |
+| **Macro Features** | VIX, SPY, DXY, GLD | CSI300, CNY, HSI |
+| **Phase 1-6** | Partially applied | Fully applied |
+| **DeepSeek** | Not used | 40% weight for sentiment |
 | **Sector Routing** | No | Yes (optimized by sector) |
-| **SNR Threshold** | 0.5 (stocks), varies by asset | 0.5 |
+| **SNR Threshold** | 0.5 (stocks), varies | 0.5 |
+| **Missing Features** | Filled with 0 (wrong) | Required or error |
+| **Weight Determination** | Fixed 50/50 | Validation-based |
+| **Feature Selection** | All available | Top importance only |
+
+### Why China Model Works Better
+
+1. **Fewer Features:** 10-30 core features vs 100+ prevents overfitting
+2. **Validation-Weighted:** Models weighted by test performance, not fixed
+3. **Domain-Specific:** CSI300 is right macro for China (VIX wrong for China)
+4. **Error Handling:** Missing features cause errors, not silent 0-fill
+5. **FIXING3 Relaxed Thresholds:** EV thresholds reduced 50-60%
+
+### US Model Should Adopt
+
+```python
+# From China Model - Reduced Feature Set (10-30 core)
+CORE_FEATURES = [
+    'returns_1d', 'returns_5d',        # Returns (2)
+    'rsi_14', 'macd',                  # Momentum (2)
+    'parkinson_vol_20', 'volatility',  # Volatility (2)
+    'vix_return', 'spy_return',        # US Macro (2)
+    'volume_ratio',                    # Volume (1)
+    'regime'                           # Regime (1)
+]
+# Total: 10 features vs 100+ current
+```
+
+```python
+# From China Model - Validation-Based Weighting
+old_accuracy = directional_accuracy(old_pred, actual)
+hybrid_accuracy = directional_accuracy(hybrid_pred, actual)
+
+old_weight = old_accuracy / (old_accuracy + hybrid_accuracy)
+new_weight = hybrid_accuracy / (old_accuracy + hybrid_accuracy)
+# NOT fixed 50/50
+```
 
 ---
 
-*Document generated: 2025-12-02*
+*Document updated: 2025-12-23*

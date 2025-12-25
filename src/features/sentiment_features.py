@@ -721,6 +721,130 @@ class SentimentFeatureEngineer:
         """Get names of created sentiment features."""
         return self.features_created
 
+    def add_realtime_social_sentiment(self, df: pd.DataFrame, ticker: str) -> pd.DataFrame:
+        """
+        Add real-time social sentiment from Reddit (FREE) + Twitter (placeholder).
+
+        NEW METHOD: Uses the USIntlSentimentCollector for real social media data.
+        This provides actual Reddit sentiment instead of price-derived proxies.
+
+        Components:
+        - FinBERT: NLP sentiment analysis (FREE, local)
+        - Reddit: Real-time posts from WSB, stocks, investing (FREE public API)
+        - Twitter: Placeholder for future ($100/mo API)
+
+        NOTE: This is ONLY for US/Intl stocks. China uses DeepSeek separately.
+
+        Args:
+            df: DataFrame with OHLC data
+            ticker: Stock ticker symbol (e.g., 'AAPL')
+
+        Returns:
+            DataFrame with real-time social sentiment features
+        """
+        df = df.copy()
+
+        print(f"\n[INFO] Adding REAL-TIME social sentiment for {ticker}")
+        print(f"       Using: FinBERT + Reddit (FREE) + Twitter (placeholder)")
+
+        try:
+            from src.sentiment.us_intl_sentiment import get_us_intl_sentiment_collector
+
+            collector = get_us_intl_sentiment_collector()
+            sentiment = collector.get_sentiment(ticker, hours=24)
+
+            print(f"[OK] Real-time sentiment collected:")
+            print(f"     FinBERT:  {sentiment.finbert_sentiment:+.3f}")
+            print(f"     Reddit:   {sentiment.reddit_sentiment:+.3f} ({sentiment.reddit_mention_count} posts)")
+            print(f"     Combined: {sentiment.combined_sentiment:+.3f}")
+            print(f"     Sources:  {sentiment.sources_used}")
+
+            # Add sentiment features to DataFrame
+            # Note: Real-time sentiment is a point-in-time value
+            # For backtesting, we apply it uniformly (production would have time-series)
+
+            df['social_sentiment'] = sentiment.combined_sentiment
+            df['social_sentiment_finbert'] = sentiment.finbert_sentiment
+            df['social_sentiment_reddit'] = sentiment.reddit_sentiment
+
+            df['social_mentions'] = float(sentiment.reddit_mention_count)
+            df['social_mentions_ma7'] = float(sentiment.reddit_mention_count)
+
+            df['social_engagement'] = float(sentiment.reddit_engagement)
+
+            # Spike detection
+            df['social_spike_detected'] = 1.0 if sentiment.spike_detected else 0.0
+            df['social_spike_magnitude'] = sentiment.spike_magnitude
+
+            # Risk indicators
+            risk_map = {'LOW': 0.0, 'MEDIUM': 0.5, 'HIGH': 1.0}
+            df['social_risk_level'] = risk_map.get(sentiment.risk_level, 0.5)
+            df['social_confidence_mult'] = sentiment.confidence_multiplier
+
+            # Combine with news sentiment if available
+            if 'news_sentiment' in df.columns:
+                df['combined_sentiment'] = (
+                    0.5 * df['news_sentiment'] +
+                    0.5 * df['social_sentiment']
+                ).clip(-1, 1)
+            else:
+                df['combined_sentiment'] = df['social_sentiment']
+
+            # Sentiment momentum (proxy using returns since we have point-in-time data)
+            df['sentiment_momentum'] = df['combined_sentiment'] - df['Close'].pct_change(5).fillna(0)
+
+            # Sentiment-price divergence
+            df['returns_5d'] = df['Close'].pct_change(5).fillna(0)
+            df['sentiment_price_divergence'] = df['combined_sentiment'] - np.tanh(df['returns_5d'] * 10)
+
+            # Flag that this is real data
+            df['sentiment_is_realtime'] = True
+            df['sentiment_twitter_placeholder'] = sentiment.twitter_placeholder
+
+            self.features_created = [
+                'social_sentiment', 'social_sentiment_finbert', 'social_sentiment_reddit',
+                'social_mentions', 'social_mentions_ma7', 'social_engagement',
+                'social_spike_detected', 'social_spike_magnitude',
+                'social_risk_level', 'social_confidence_mult',
+                'combined_sentiment', 'sentiment_momentum',
+                'returns_5d', 'sentiment_price_divergence',
+                'sentiment_is_realtime', 'sentiment_twitter_placeholder'
+            ]
+
+            print(f"[OK] Created {len(self.features_created)} real-time sentiment features")
+
+            # Print warnings if any
+            if sentiment.warnings:
+                print(f"[WARNINGS]:")
+                for w in sentiment.warnings:
+                    print(f"  - {w}")
+
+            return df
+
+        except ImportError as e:
+            print(f"[WARNING] USIntlSentimentCollector not available: {e}")
+            print(f"[INFO] Falling back to price-derived proxy sentiment")
+            return self.add_price_derived_sentiment_proxy(df)
+
+        except Exception as e:
+            print(f"[ERROR] Real-time sentiment failed: {e}")
+            print(f"[INFO] Falling back to price-derived proxy sentiment")
+            return self.add_price_derived_sentiment_proxy(df)
+
+    def get_realtime_sentiment_result(self, ticker: str):
+        """
+        Get the raw sentiment result for a ticker (for API/UI use).
+
+        Returns USIntlSentimentResult object or None if unavailable.
+        """
+        try:
+            from src.sentiment.us_intl_sentiment import get_us_intl_sentiment_collector
+            collector = get_us_intl_sentiment_collector()
+            return collector.get_sentiment(ticker, hours=24)
+        except Exception as e:
+            print(f"[ERROR] Failed to get sentiment for {ticker}: {e}")
+            return None
+
 
 # Example usage and testing
 def test_sentiment_features():

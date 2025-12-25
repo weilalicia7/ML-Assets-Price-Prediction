@@ -55,6 +55,7 @@ class YahooScreenerDiscoverer:
             'crypto': 600,
             'commodity': 1800,
             'forex': 1800,
+            'etf': 1800,  # ETF cache TTL
         }
 
     def discover_tickers(self, screener_type: str, count: int = 30) -> List[str]:
@@ -79,6 +80,8 @@ class YahooScreenerDiscoverer:
                 tickers = self._commodity_screener_realtime(count)
             elif screener_type == 'forex':
                 tickers = self._forex_screener_realtime(count)
+            elif screener_type == 'etf':
+                tickers = self._etf_screener_realtime(count)
             else:
                 # Use built-in Yahoo screeners for US stocks
                 tickers = self._builtin_screener(screener_type, count)
@@ -172,25 +175,28 @@ class YahooScreenerDiscoverer:
                 EquityQuery('GT', ['dayvolume', 10000000])
             ])
 
-            results = yf.screen(cn_query, size=count * 5, sortField='dayvolume', sortAsc=False)
+            results = yf.screen(cn_query, size=count * 10, sortField='dayvolume', sortAsc=False)
 
             if results and 'quotes' in results:
                 symbols = []
                 for q in results['quotes']:
                     symbol = q.get('symbol', '')
                     if symbol.endswith('.SS'):
-                        # Filter for actual A-shares only:
-                        # 600xxx, 601xxx, 603xxx = Main board
+                        # Filter for actual A-shares only (EXCLUDE ETFs/Funds):
+                        # 600xxx, 601xxx, 603xxx = Main board A-shares
                         # 688xxx = STAR Market (Science and Technology)
+                        # EXCLUDE: 5xxxxx = ETFs/Funds, 9xxxxx = B-shares
                         code = symbol.replace('.SS', '')
-                        if code.startswith('60') or code.startswith('688'):
+                        # Must be 6-digit code starting with 60 or 688
+                        if len(code) == 6 and (code.startswith('600') or code.startswith('601') or
+                                               code.startswith('603') or code.startswith('688')):
                             symbols.append(symbol)
 
                 if symbols:
-                    logger.info(f"[SHANGHAI SCREENER REALTIME] Found {len(symbols)} A-shares")
+                    logger.info(f"[SHANGHAI SCREENER REALTIME] Found {len(symbols)} A-shares (filtered out ETFs/funds)")
                     return symbols[:count]
 
-            logger.warning("[SHANGHAI SCREENER] No real-time data from Yahoo Finance")
+            logger.warning("[SHANGHAI SCREENER] No real-time A-share data from Yahoo Finance")
             return []
 
         except Exception as e:
@@ -206,25 +212,28 @@ class YahooScreenerDiscoverer:
                 EquityQuery('GT', ['dayvolume', 10000000])
             ])
 
-            results = yf.screen(sz_query, size=count * 5, sortField='dayvolume', sortAsc=False)
+            results = yf.screen(sz_query, size=count * 10, sortField='dayvolume', sortAsc=False)
 
             if results and 'quotes' in results:
                 symbols = []
                 for q in results['quotes']:
                     symbol = q.get('symbol', '')
                     if symbol.endswith('.SZ'):
-                        # Filter for actual A-shares only:
-                        # 000xxx, 001xxx, 002xxx = Main board
+                        # Filter for actual A-shares only (EXCLUDE ETFs/Funds):
+                        # 000xxx, 001xxx, 002xxx = Main board A-shares
                         # 300xxx = ChiNext (Growth Enterprise Market)
+                        # EXCLUDE: 15xxxx, 16xxxx = ETFs/Funds
                         code = symbol.replace('.SZ', '')
-                        if code.startswith('00') or code.startswith('30'):
+                        # Must be 6-digit code starting with 00, 001, 002, or 300
+                        if len(code) == 6 and (code.startswith('000') or code.startswith('001') or
+                                               code.startswith('002') or code.startswith('300')):
                             symbols.append(symbol)
 
                 if symbols:
-                    logger.info(f"[SHENZHEN SCREENER REALTIME] Found {len(symbols)} A-shares")
+                    logger.info(f"[SHENZHEN SCREENER REALTIME] Found {len(symbols)} A-shares (filtered out ETFs/funds)")
                     return symbols[:count]
 
-            logger.warning("[SHENZHEN SCREENER] No real-time data from Yahoo Finance")
+            logger.warning("[SHENZHEN SCREENER] No real-time A-share data from Yahoo Finance")
             return []
 
         except Exception as e:
@@ -486,6 +495,106 @@ class YahooScreenerDiscoverer:
         logger.warning("[FOREX SCREENER] No real-time forex data available from Yahoo Finance")
         return []
 
+    def _etf_screener_realtime(self, count: int) -> List[str]:
+        """
+        Screen ETFs - REAL-TIME ONLY using Yahoo Finance EquityQuery
+
+        Uses Yahoo Finance real-time screeners to discover ETFs dynamically.
+        NO HARDCODED FALLBACKS - only live data from Yahoo Finance.
+        """
+        valid_etfs = []
+
+        # Approach 1: Try Yahoo's built-in ETF screeners
+        try:
+            # Try multiple Yahoo ETF screener endpoints
+            etf_screeners = [
+                'top_etfs_us',
+                'most_traded_etfs_us',
+                'day_gainers',  # May include ETFs
+            ]
+
+            for screener_name in etf_screeners:
+                try:
+                    results = yf.screen(screener_name, size=count * 3)
+                    if results and 'quotes' in results:
+                        for q in results['quotes']:
+                            symbol = q.get('symbol', '')
+                            quote_type = q.get('quoteType', '').upper()
+                            # Filter for ETFs only
+                            if symbol and quote_type == 'ETF':
+                                if symbol not in valid_etfs:
+                                    valid_etfs.append(symbol)
+
+                        if len(valid_etfs) >= count:
+                            logger.info(f"[ETF SCREENER REALTIME] Found {len(valid_etfs)} ETFs from {screener_name}")
+                            break
+                except Exception as e:
+                    logger.debug(f"[ETF SCREENER] {screener_name} failed: {e}")
+                    continue
+
+        except Exception as e:
+            logger.debug(f"[ETF SCREENER] Built-in screeners failed: {e}")
+
+        # Approach 2: Use EquityQuery to find ETFs with high volume
+        if len(valid_etfs) < count:
+            try:
+                # Query for ETFs with minimum trading volume (active ETFs)
+                etf_query = EquityQuery('AND', [
+                    EquityQuery('EQ', ['quoteType', 'ETF']),
+                    EquityQuery('GT', ['dayvolume', 100000])  # Active ETFs with > 100K daily volume
+                ])
+
+                results = yf.screen(etf_query, size=count * 3, sortField='dayvolume', sortAsc=False)
+
+                if results and 'quotes' in results:
+                    for q in results['quotes']:
+                        symbol = q.get('symbol', '')
+                        if symbol and symbol not in valid_etfs:
+                            valid_etfs.append(symbol)
+
+                    logger.info(f"[ETF SCREENER REALTIME] EquityQuery found {len(valid_etfs)} ETFs total")
+
+            except Exception as e:
+                logger.debug(f"[ETF SCREENER] EquityQuery failed: {e}")
+
+        # Approach 3: Search for ETFs in major US exchanges
+        if len(valid_etfs) < count:
+            try:
+                for exchange in ['NYQ', 'NMS', 'PCX']:  # NYSE, NASDAQ, ARCA
+                    try:
+                        exchange_query = EquityQuery('AND', [
+                            EquityQuery('EQ', ['exchange', exchange]),
+                            EquityQuery('EQ', ['quoteType', 'ETF']),
+                            EquityQuery('GT', ['intradaymarketcap', 10000000])  # > $10M market cap
+                        ])
+
+                        results = yf.screen(exchange_query, size=count, sortField='dayvolume', sortAsc=False)
+
+                        if results and 'quotes' in results:
+                            for q in results['quotes']:
+                                symbol = q.get('symbol', '')
+                                if symbol and symbol not in valid_etfs:
+                                    valid_etfs.append(symbol)
+
+                        if len(valid_etfs) >= count:
+                            break
+
+                    except Exception as e:
+                        logger.debug(f"[ETF SCREENER] Exchange {exchange} query failed: {e}")
+                        continue
+
+                logger.info(f"[ETF SCREENER REALTIME] Exchange queries found {len(valid_etfs)} ETFs total")
+
+            except Exception as e:
+                logger.debug(f"[ETF SCREENER] Exchange queries failed: {e}")
+
+        if valid_etfs:
+            logger.info(f"[ETF SCREENER REALTIME] Found {len(valid_etfs)} tradeable ETFs from real-time Yahoo Finance")
+            return valid_etfs[:count]
+
+        logger.warning("[ETF SCREENER] No real-time ETF data available from Yahoo Finance")
+        return []
+
     def clear_cache(self):
         """Clear all cached screener results"""
         self._cache.clear()
@@ -512,6 +621,7 @@ class RegimeScreenerStrategy:
         Returns empty list if Yahoo Finance is unavailable.
         """
         regime_lower = regime.lower()
+        logger.info(f"[REGIME STRATEGY] Input regime: '{regime}' -> lowercased: '{regime_lower}'")
 
         if regime_lower == 'stock':
             return self._us_stock_strategy(count), 'us_screener'
@@ -523,6 +633,12 @@ class RegimeScreenerStrategy:
             return self._commodity_strategy(count), 'commodity_screener'
         elif regime_lower == 'forex':
             return self._forex_strategy(count), 'forex_screener'
+        elif regime_lower == 'etf':
+            return self._etf_strategy(count), 'etf_screener'
+        elif regime_lower == 'us_ipo':
+            return self._us_ipo_strategy(count), 'us_ipo_screener'
+        elif regime_lower == 'china_ipo':
+            return self._china_ipo_strategy(count), 'china_ipo_screener'
         elif regime_lower == 'all':
             return self._all_markets_strategy(count), 'mixed_screener'
         else:
@@ -557,6 +673,10 @@ class RegimeScreenerStrategy:
         """Forex pairs - REAL-TIME ONLY"""
         return self.discoverer.discover_tickers('forex', count)
 
+    def _etf_strategy(self, count: int) -> List[str]:
+        """ETFs - REAL-TIME ONLY"""
+        return self.discoverer.discover_tickers('etf', count)
+
     def _all_markets_strategy(self, count: int) -> List[str]:
         """Mixed markets - REAL-TIME ONLY"""
         per_type = max(count // 4, 5)
@@ -572,6 +692,165 @@ class RegimeScreenerStrategy:
     def _default_strategy(self, count: int) -> List[str]:
         """Default: US stocks - REAL-TIME ONLY"""
         return self._us_stock_strategy(count)
+
+    def _filter_us_ipos(self, tickers: List[str], max_days: int = 60) -> List[str]:
+        """
+        Filter US tickers to only include actual IPOs (< max_days trading).
+        Excludes warrants, SPAC derivatives, and other non-stock securities.
+        Uses parallel checking for speed.
+        """
+        def check_ticker(ticker):
+            try:
+                # Exclude warrants by ticker pattern (ends with W, WS, WT, +)
+                if ticker.endswith('W') or ticker.endswith('WS') or ticker.endswith('WT') or '+' in ticker:
+                    logger.debug(f"[US IPO FILTER] Skipping warrant: {ticker}")
+                    return None
+
+                t = yf.Ticker(ticker)
+
+                # Check quote type - only accept EQUITY (common stock)
+                try:
+                    info = t.info
+                    quote_type = info.get('quoteType', '').upper()
+                    # Exclude warrants, rights, units, preferred stock
+                    if quote_type not in ['EQUITY', '']:
+                        logger.debug(f"[US IPO FILTER] Skipping non-equity {ticker}: {quote_type}")
+                        return None
+                    # Also check for warrant/unit indicators in name
+                    long_name = info.get('longName', '').lower()
+                    if any(x in long_name for x in ['warrant', 'unit', 'right', 'preferred']):
+                        logger.debug(f"[US IPO FILTER] Skipping derivative {ticker}: {long_name}")
+                        return None
+                except:
+                    pass  # If info fails, continue with history check
+
+                hist = t.history(period="6mo")
+                if hist is not None and len(hist) > 0 and len(hist) < max_days:
+                    return (ticker, len(hist))
+            except:
+                pass
+            return None
+
+        # Check in parallel
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            results = list(executor.map(check_ticker, tickers))
+
+        ipos = [(t, d) for t, d in [r for r in results if r is not None]]
+        ipos.sort(key=lambda x: x[1])  # Sort by days (newest first)
+
+        if ipos:
+            logger.info(f"[US IPO FILTER] Found {len(ipos)} actual IPOs from {len(tickers)} candidates:")
+            for ticker, days in ipos[:5]:
+                logger.info(f"  - {ticker}: {days} trading days")
+        else:
+            logger.info(f"[US IPO FILTER] No IPOs found from {len(tickers)} candidates")
+
+        return [t[0] for t in ipos]
+
+    def _us_ipo_strategy(self, count: int) -> List[str]:
+        """
+        US IPOs and new stocks (< 60 days trading) - REAL-TIME ONLY.
+
+        Fetches candidates from multiple screeners, then FILTERS to only actual IPOs.
+        No hardcoded tickers - 100% real-time data.
+        """
+        # Get candidates from multiple screeners (more sources = better chance of finding IPOs)
+        gainers = self.discoverer.discover_tickers('us_gainers', count * 3)
+        active = self.discoverer.discover_tickers('us_active', count * 2)
+        small_cap = self.discoverer.discover_tickers('us_small_cap', count * 2)
+
+        # Combine and deduplicate
+        combined = list(dict.fromkeys(gainers + active + small_cap))
+
+        logger.info(f"[US IPO STRATEGY] Checking {len(combined)} candidates for actual IPOs...")
+
+        # FILTER: Only keep stocks with < 60 days trading history
+        ipos = self._filter_us_ipos(combined, max_days=60)
+
+        if ipos:
+            logger.info(f"[US IPO STRATEGY] Found {len(ipos)} actual US IPOs")
+            return ipos[:count]
+        else:
+            logger.warning("[US IPO STRATEGY] No US IPOs found with < 60 days trading")
+            return []
+
+    def _filter_china_ipos(self, tickers: List[str], max_days: int = 60) -> List[str]:
+        """
+        Filter tickers to only include actual IPOs (< max_days trading).
+        Uses parallel checking for speed.
+        """
+        def check_ticker(ticker):
+            try:
+                t = yf.Ticker(ticker)
+                hist = t.history(period="6mo")
+                if hist is not None and len(hist) > 0 and len(hist) < max_days:
+                    return (ticker, len(hist))
+            except:
+                pass
+            return None
+        
+        # Check in parallel
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            results = list(executor.map(check_ticker, tickers))
+        
+        ipos = [(t, d) for t, d in [r for r in results if r is not None]]
+        ipos.sort(key=lambda x: x[1])  # Sort by days (newest first)
+        
+        if ipos:
+            logger.info(f"[IPO FILTER] Found {len(ipos)} actual IPOs from {len(tickers)} candidates:")
+            for ticker, days in ipos[:5]:
+                logger.info(f"  - {ticker}: {days} trading days")
+        else:
+            logger.info(f"[IPO FILTER] No IPOs found from {len(tickers)} candidates")
+        
+        return [t[0] for t in ipos]
+
+    def _check_recent_star_ipos(self, max_days: int = 60) -> List[str]:
+        """
+        Quick check of most recent STAR Market (688xxx) tickers for IPOs.
+        Only checks 10 tickers to avoid rate limiting.
+        """
+        star_ipos = []
+        # Check 688790-688799 range (most recent STAR listings)
+        for num in range(790, 800):
+            ticker = f"688{num}.SS"
+            try:
+                t = yf.Ticker(ticker)
+                hist = t.history(period="3mo")
+                if hist is not None and len(hist) > 0 and len(hist) < max_days:
+                    star_ipos.append((ticker, len(hist)))
+                    logger.info(f"[STAR IPO] Found {ticker}: {len(hist)} trading days")
+            except:
+                pass
+        return [t[0] for t in star_ipos]
+
+    def _china_ipo_strategy(self, count: int) -> List[str]:
+        """
+        China IPOs and new stocks (< 60 days trading) - REAL-TIME ONLY.
+
+        Filters screener results to only actual IPOs + checks STAR Market.
+        """
+        all_ipos = []
+        
+        # Method 1: Get candidates from China screener and FILTER for actual IPOs
+        active = self.discoverer.discover_tickers('china_active', count * 4)
+        logger.info(f"[CHINA IPO] Checking {len(active)} screener candidates for actual IPOs...")
+        filtered_ipos = self._filter_china_ipos(active, max_days=60)
+        all_ipos.extend(filtered_ipos)
+        
+        # Method 2: Quick STAR Market check (only 10 tickers)
+        star_ipos = self._check_recent_star_ipos(max_days=60)
+        all_ipos.extend(star_ipos)
+        
+        # Deduplicate
+        unique = list(dict.fromkeys(all_ipos))
+        
+        if unique:
+            logger.info(f"[CHINA IPO STRATEGY] Found {len(unique)} actual IPOs")
+        else:
+            logger.warning("[CHINA IPO STRATEGY] No China IPOs found with < 60 days trading")
+        
+        return unique[:count]
 
 
 # ============================================================================

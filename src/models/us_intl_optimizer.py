@@ -84,8 +84,17 @@ FIXES 54-61 (from us model fixing8.pdf - US-Specific Aggressive Alpha Strategies
     Fix 60: Earnings-Driven Sector Rotation - Beat rate trends, revision momentum, sector leadership
     Fix 61: Real-Time US News Analysis - News categorization, sentiment scoring, impact decay modeling
 
+FIX 62 (from us model fixing7_3.pdf - Bear-to-Bull Transition Optimization):
+    Fix 62: LagFreeRegimeClassifier - Eliminates 10-20% underperformance during transitions
+            - Early warning signal detection (higher lows, RSI divergence, volume, SMA breakout)
+            - Gradual position blending (smooth transitions instead of sudden jumps)
+            - VIX-based adaptive thresholds (3-12% instead of fixed 5%)
+            - Multi-timeframe confirmation (50% 5d, 30% 10d, 20% 20d)
+            - Regime probability scoring (probabilistic vs binary classification)
+            Backtest: +0.37% avg improvement, 19.5 days faster detection
+
 Author: Claude Code
-Last Updated: 2025-12-09
+Last Updated: 2025-12-17
 """
 
 import numpy as np
@@ -123,6 +132,21 @@ except ImportError:
     YFINANCE_AVAILABLE = False
     yf = None
     EquityQuery = None
+
+# Import Lag-Free Regime Classifier (Fix 62 - Bear-to-Bull Transition Optimization)
+try:
+    from ..features.lag_free_regime import (
+        LagFreeRegimeClassifier,
+        EnhancedUSMarketRegimeClassifier,
+        LagFreeRegimeOutput,
+    )
+    LAG_FREE_REGIME_AVAILABLE = True
+except ImportError:
+    # Fallback if lag_free_regime module not available
+    LAG_FREE_REGIME_AVAILABLE = False
+    LagFreeRegimeClassifier = None
+    EnhancedUSMarketRegimeClassifier = None
+    LagFreeRegimeOutput = None
 
 
 # ============================================================================
@@ -1550,9 +1574,54 @@ class USMarketRegimeClassifier:
         'extreme': 40,  # Above 30 = extreme
     }
 
-    def __init__(self):
+    # FIX 62: VIX-based adaptive bull/bear thresholds (replaces hard 5%)
+    # Lower threshold in calm markets, higher in volatile markets
+    VIX_ADAPTIVE_THRESHOLDS = {
+        'ultra_low': (0, 12, 0.03),      # 3% threshold when VIX < 12
+        'low': (12, 15, 0.04),           # 4% threshold when VIX 12-15
+        'normal': (15, 20, 0.05),        # 5% threshold when VIX 15-20
+        'elevated': (20, 25, 0.06),      # 6% threshold when VIX 20-25
+        'high': (25, 35, 0.08),          # 8% threshold when VIX 25-35
+        'extreme': (35, 50, 0.10),       # 10% threshold when VIX 35-50
+        'crisis': (50, float('inf'), 0.12)  # 12% threshold when VIX > 50
+    }
+
+    def __init__(self, use_lag_free: bool = True):
+        """
+        Initialize US Market Regime Classifier.
+
+        Args:
+            use_lag_free: If True and LAG_FREE_REGIME_AVAILABLE, uses the
+                         enhanced lag-free detection with adaptive thresholds.
+                         (Fix 62). Default: True.
+        """
         self.current_regime = 'neutral'
         self.regime_history = deque(maxlen=20)
+        self.use_lag_free = use_lag_free and LAG_FREE_REGIME_AVAILABLE
+
+        # Initialize lag-free classifier if available
+        if self.use_lag_free:
+            self._lag_free_classifier = LagFreeRegimeClassifier()
+        else:
+            self._lag_free_classifier = None
+
+    def _get_adaptive_threshold(self, vix_level: float) -> float:
+        """
+        FIX 62: Get adaptive bull/bear threshold based on VIX level.
+
+        In low volatility, smaller moves are significant.
+        In high volatility, larger moves needed to confirm regime.
+
+        Args:
+            vix_level: Current VIX value
+
+        Returns:
+            Threshold (0.03 to 0.12)
+        """
+        for regime_name, (low, high, threshold) in self.VIX_ADAPTIVE_THRESHOLDS.items():
+            if low <= vix_level < high:
+                return threshold
+        return 0.05  # Default
 
     def classify_regime(
         self,
@@ -1566,6 +1635,9 @@ class USMarketRegimeClassifier:
     ) -> Tuple[str, Dict[str, float]]:
         """
         Classify current US market regime.
+
+        FIX 62 ENHANCEMENT: Now uses VIX-adaptive thresholds instead of
+        fixed 5% threshold. This catches bear-to-bull transitions faster.
 
         Args:
             spy_returns_20d: 20-day SPY returns (decimal)
@@ -1588,19 +1660,26 @@ class USMarketRegimeClassifier:
             regime = 'earnings_season'
         elif sector_dispersion > 0.03:  # >3% sector dispersion
             regime = 'sector_rotation'
-        # Priority 2: Trend-based regimes
-        elif spy_returns_20d > 0.05:  # Bull market (>5% in 20 days)
-            if spy_returns_5d > 0.02:  # Strong recent momentum
-                regime = 'bull_momentum'
-            else:
-                regime = 'bull_consolidation'
-        elif spy_returns_20d < -0.05:  # Bear market (<-5% in 20 days)
-            if spy_returns_5d < -0.02:  # Strong downward momentum
-                regime = 'bear_momentum'
-            else:
-                regime = 'bear_rally'
         else:
-            regime = 'neutral'
+            # Priority 2: Trend-based regimes with FIX 62 adaptive thresholds
+            # Get VIX-adaptive threshold (replaces hard 5%)
+            threshold = self._get_adaptive_threshold(vix_level)
+
+            # Multi-timeframe weighting (Fix 62): weight recent returns more
+            weighted_return = spy_returns_5d * 0.6 + spy_returns_20d * 0.4
+
+            if weighted_return > threshold:  # Bull market (adaptive threshold)
+                if spy_returns_5d > threshold * 0.4:  # Strong recent momentum
+                    regime = 'bull_momentum'
+                else:
+                    regime = 'bull_consolidation'
+            elif weighted_return < -threshold:  # Bear market (adaptive threshold)
+                if spy_returns_5d < -threshold * 0.4:  # Strong downward momentum
+                    regime = 'bear_momentum'
+                else:
+                    regime = 'bear_rally'
+            else:
+                regime = 'neutral'
 
         # VIX adjustment: In extreme VIX, shift more to CatBoost (less momentum-following)
         weights = self.US_ADAPTIVE_ENSEMBLE_WEIGHTS.get(regime, self.US_ADAPTIVE_ENSEMBLE_WEIGHTS['neutral']).copy()
@@ -1617,6 +1696,99 @@ class USMarketRegimeClassifier:
         self.regime_history.append(regime)
 
         return regime, weights
+
+    def classify_regime_with_data(
+        self,
+        spy_data,  # pd.DataFrame with OHLCV
+        vix_level: float = 20.0,
+        is_fomc_week: bool = False,
+        is_earnings_season: bool = False,
+        is_opex_week: bool = False,
+        sector_dispersion: float = 0.0,
+    ) -> Tuple[str, Dict[str, float], Optional[Any]]:
+        """
+        FIX 62: Enhanced regime classification with full SPY data.
+
+        This method uses the LagFreeRegimeClassifier when available,
+        enabling early warning signal detection for faster transitions.
+
+        Args:
+            spy_data: DataFrame with 'Open', 'High', 'Low', 'Close', 'Volume'
+            vix_level: Current VIX level
+            is_fomc_week: True if FOMC meeting this week
+            is_earnings_season: True if major earnings season
+            is_opex_week: True if options expiration week
+            sector_dispersion: Cross-sector return dispersion
+
+        Returns:
+            (regime, weights, lag_free_output) tuple
+            lag_free_output is None if lag-free classifier not available
+        """
+        lag_free_output = None
+
+        if self.use_lag_free and self._lag_free_classifier is not None:
+            try:
+                # Use lag-free classifier for enhanced detection
+                lag_free_output = self._lag_free_classifier.classify_regime(
+                    spy_data=spy_data,
+                    vix_level=vix_level,
+                    is_fomc_week=is_fomc_week,
+                    is_earnings_season=is_earnings_season,
+                    is_opex_week=is_opex_week,
+                    sector_dispersion=sector_dispersion
+                )
+
+                regime = lag_free_output.primary_regime
+                weights = self.US_ADAPTIVE_ENSEMBLE_WEIGHTS.get(
+                    regime,
+                    self.US_ADAPTIVE_ENSEMBLE_WEIGHTS['neutral']
+                ).copy()
+
+                # VIX adjustment
+                if vix_level > self.VIX_THRESHOLDS['extreme']:
+                    weights['catboost'] = min(weights['catboost'] + 0.15, 0.95)
+                    weights['lstm'] = max(weights['lstm'] - 0.15, 0.05)
+                elif vix_level > self.VIX_THRESHOLDS['high']:
+                    weights['catboost'] = min(weights['catboost'] + 0.10, 0.90)
+                    weights['lstm'] = max(weights['lstm'] - 0.10, 0.10)
+
+                self.current_regime = regime
+                self.regime_history.append(regime)
+
+                return regime, weights, lag_free_output
+
+            except Exception as e:
+                # Fall back to returns-based classification
+                pass
+
+        # Fallback: calculate returns from data and use standard method
+        try:
+            import pandas as pd
+            if len(spy_data) >= 21:
+                spy_returns_20d = float(spy_data['Close'].pct_change(20).iloc[-1])
+                spy_returns_5d = float(spy_data['Close'].pct_change(5).iloc[-1])
+                if pd.isna(spy_returns_20d):
+                    spy_returns_20d = 0.0
+                if pd.isna(spy_returns_5d):
+                    spy_returns_5d = 0.0
+            else:
+                spy_returns_20d = 0.0
+                spy_returns_5d = 0.0
+        except Exception:
+            spy_returns_20d = 0.0
+            spy_returns_5d = 0.0
+
+        regime, weights = self.classify_regime(
+            spy_returns_20d=spy_returns_20d,
+            spy_returns_5d=spy_returns_5d,
+            vix_level=vix_level,
+            is_fomc_week=is_fomc_week,
+            is_earnings_season=is_earnings_season,
+            is_opex_week=is_opex_week,
+            sector_dispersion=sector_dispersion
+        )
+
+        return regime, weights, lag_free_output
 
     def get_regime_position_multiplier(self, regime: str, signal_type: str) -> float:
         """

@@ -33,6 +33,83 @@ from src.models.enhanced_ensemble import EnhancedEnsemblePredictor
 from src.models.hybrid_lstm_cnn import HybridLSTMCNNPredictor  # NEW: Hybrid LSTM/CNN
 from src.models.hybrid_ensemble import HybridEnsemblePredictor  # NEW: Ensemble combining old + new
 from src.models.us_intl_optimizer import USIntlModelOptimizer, create_optimizer  # US/Intl Model Fixes 1-15
+
+# NEW: Profit Maximization Optimizers (Priority Fixes 1-3 from profit test fixing1 full code.pdf)
+# Priority 1: Energy subsector optimization (fixes -82% energy loss)
+# Priority 2: Commodity dominance classification (fixes -91% mining loss)
+# Priority 3: Dividend-aware optimization (improves financials)
+try:
+    from src.trading.integrated_us_optimizer import (
+        IntegratedUSOptimizer,
+        create_integrated_optimizer,
+        IntegratedSignalOptimization,
+    )
+    PROFIT_OPTIMIZER_AVAILABLE = True
+    print("[PROFIT OPTIMIZER] Successfully imported IntegratedUSOptimizer")
+except ImportError as e:
+    PROFIT_OPTIMIZER_AVAILABLE = False
+    print(f"[PROFIT OPTIMIZER] Import failed (will use base optimizer only): {e}")
+
+# RSI Risk Adapter from 'us model fixing5.pdf'
+try:
+    from src.trading.rsi_risk_adapter import (
+        RSIRiskAdapter,
+        RSIRiskLevel,
+        RSIEnhancedSignal,
+        create_rsi_adapter,
+    )
+    RSI_ADAPTER_AVAILABLE = True
+    print("[RSI ADAPTER] Successfully imported RSIRiskAdapter (fixing5)")
+except ImportError as e:
+    RSI_ADAPTER_AVAILABLE = False
+    print(f"[RSI ADAPTER] Import failed: {e}")
+
+# Profit Maximizer from 'us model fixing6.pdf'
+try:
+    from src.trading.profit_maximizer import (
+        ProfitMaximizer,
+        DynamicEVPositionSizer,
+        CompleteProfitMaximizationStrategy,
+        create_profit_maximizer,
+        create_complete_strategy,
+        analyze_signal_ev,
+    )
+    PROFIT_MAXIMIZER_AVAILABLE = True
+    print("[PROFIT MAXIMIZER] Successfully imported ProfitMaximizer (fixing6)")
+except ImportError as e:
+    PROFIT_MAXIMIZER_AVAILABLE = False
+    print(f"[PROFIT MAXIMIZER] Import failed: {e}")
+
+# US Profit-Maximizing Regime Classifier (from 'us model fixing8.pdf')
+# Implements: Dynamic multiplier scaling, transition phase detection, Kelly criterion sizing
+try:
+    from src.features.profit_maximizing_regime import (
+        ProfitMaximizingRegimeClassifier,
+        ProfitMaximizingOutput,
+        TransitionPhase,
+        get_profit_optimized_regime,
+    )
+    US_PROFIT_REGIME_AVAILABLE = True
+    print("[US PROFIT REGIME] Successfully imported ProfitMaximizingRegimeClassifier (fixing8)")
+except ImportError as e:
+    US_PROFIT_REGIME_AVAILABLE = False
+    print(f"[US PROFIT REGIME] Import failed: {e}")
+
+# US New Stock/IPO Handler (from 'dual model fixing1.pdf' - FIXING3)
+# Implements: Tiered IPO analysis, SPAC handling, options-enhanced analysis
+try:
+    from src.trading.us_new_stock_handler import (
+        USNewStockHandler,
+        USSPACHandler,
+        USIPOAnalyzer,
+        apply_us_ipo_handler,
+    )
+    US_IPO_HANDLER_AVAILABLE = True
+    print("[US IPO HANDLER] Successfully imported USNewStockHandler (fixing3)")
+except ImportError as e:
+    US_IPO_HANDLER_AVAILABLE = False
+    print(f"[US IPO HANDLER] Import failed: {e}")
+
 from src.features.technical_features import TechnicalFeatureEngineer
 from src.features.volatility_features import VolatilityFeatureEngineer
 from src.features.sentiment_features import SentimentFeatureEngineer  # NEW: Sentiment analysis
@@ -48,6 +125,29 @@ from src.models.china_sector_router import ChinaSectorRouter  # NEW: Sector-base
 from src.models.china_sector_classifier import ChinaSectorClassifier  # NEW: Sector classification
 from src.features.china_macro_features import ChinaMacroFeatureEngineer
 from src.features.selective_macro_features import SelectiveMacroFeatureEngineer
+
+# US Model Fixing9 Implementation (from 'us model fixing9.pdf')
+# P0: safe_fill_missing_features, US_CORE_FEATURES, lower SNR thresholds
+# P1: profit score, Kelly sizing, dynamic targets
+# P2: sector rotation, correlation limits
+try:
+    from src.fixes.us_model_fixing9 import (
+        safe_fill_missing_features,
+        select_core_features,
+        calculate_confidence_fixing9,
+        calculate_profit_score_fixing9,
+        calculate_position_size_fixing9,
+        calculate_profit_targets_fixing9,
+        apply_fixing9_to_prediction,
+        US_CORE_FEATURES,
+        SNR_THRESHOLDS_FIXING9,
+        SAFE_FEATURE_DEFAULTS,
+    )
+    FIXING9_AVAILABLE = True
+    print("[FIXING9] Successfully imported US Model Fixing9 (P0-P2 fixes)")
+except ImportError as e:
+    FIXING9_AVAILABLE = False
+    print(f"[FIXING9] Import failed (will use original method): {e}")
 
 # Configure logging EARLY (needed for import error messages)
 logging.basicConfig(level=logging.INFO)
@@ -140,6 +240,43 @@ try:
 except ImportError as e:
     CHINA_MODEL_AVAILABLE = False
     logger.warning(f"[CHINA MODEL] Import failed (will use fallback): {e}")
+
+# China Lag-Free Transition Detection (Fix 62 adaptation)
+try:
+    from china_lag_free_transition import (
+        ChinaLagFreeTransitionDetector,
+        integrate_transition_detection,
+        ChinaTransitionOutput
+    )
+    from china_adaptive_profit_maximizer import ChinaAdaptiveProfitMaximizer
+    CHINA_TRANSITION_AVAILABLE = True
+    logger.info("[CHINA TRANSITION] Lag-free transition detection loaded")
+except ImportError as e:
+    CHINA_TRANSITION_AVAILABLE = False
+    logger.warning(f"[CHINA TRANSITION] Import failed (will use fallback): {e}")
+
+# Global China transition detector instance
+CHINA_TRANSITION_DETECTOR = None
+CHINA_PROFIT_MAXIMIZER = None
+if CHINA_TRANSITION_AVAILABLE:
+    try:
+        CHINA_TRANSITION_DETECTOR = ChinaLagFreeTransitionDetector()
+        # FIXING2: Enable all fixing2 enhancements by default
+        CHINA_PROFIT_MAXIMIZER = ChinaAdaptiveProfitMaximizer(base_capital=100000, apply_fixing2=True)
+        logger.info("[CHINA TRANSITION] Detector and profit maximizer initialized")
+        logger.info("[CHINA FIXING3] Enhancements enabled: Relaxed EV, Composite Quality, Momentum Override, IPO Handler, Sector Rules")
+    except Exception as e:
+        logger.warning(f"[CHINA TRANSITION] Failed to initialize: {e}")
+
+# Global US Profit-Maximizing Regime Classifier (from 'us model fixing8.pdf')
+# NOTE: This is for US/International model ONLY - not China/DeepSeek
+US_PROFIT_REGIME_CLASSIFIER = None
+if US_PROFIT_REGIME_AVAILABLE:
+    try:
+        US_PROFIT_REGIME_CLASSIFIER = ProfitMaximizingRegimeClassifier(initial_vix=20.0)
+        logger.info("[US PROFIT REGIME] Classifier initialized with fixing8 enhancements")
+    except Exception as e:
+        logger.warning(f"[US PROFIT REGIME] Failed to initialize: {e}")
 
 # Enhanced Yahoo Finance data layer and China ticker resolver
 try:
@@ -308,9 +445,14 @@ def clean_features_for_training(df, verbose=True):
     df = df.replace([np.inf], 1e10)
     df = df.replace([-np.inf], -1e10)
 
-    # Fill remaining NaN with 0 for numeric columns
+    # FIXING9: Fill remaining NaN with safe historical means (not zeros!)
+    # Using 0 for features like VIX (normally 10-30) completely breaks the model
     numeric_cols = df.select_dtypes(include=[np.number]).columns
-    df[numeric_cols] = df[numeric_cols].fillna(0)
+    if FIXING9_AVAILABLE:
+        df = safe_fill_missing_features(df, verbose=verbose)
+    else:
+        # Fallback to zeros if fixing9 not available
+        df[numeric_cols] = df[numeric_cols].fillna(0)
 
     # Clip extreme values (optional, helps with stability)
     for col in numeric_cols:
@@ -460,6 +602,10 @@ def get_yahoo_data_safe(ticker, period='1y', max_retries=3):
             stock = yf.Ticker(ticker)
             df = stock.history(period=period)
             if df is not None and not df.empty:
+                # FIX: Handle multi-index columns from yfinance
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.droplevel(1)
+                    logger.debug(f"[YAHOO] Flattened multi-index columns for {ticker}")
                 return df
         except Exception as e:
             if attempt < max_retries - 1:
@@ -1569,6 +1715,210 @@ def is_china_ticker(ticker):
     return ticker_upper.endswith('.HK') or ticker_upper.endswith('.SS') or ticker_upper.endswith('.SZ')
 
 
+def get_quality_filter_checks(ticker, price_data=None):
+    """
+    Get quality filter check results for China Model FIXING3 display.
+
+    FIXING3 Updates:
+    - Relaxed thresholds: EPS > -0.1, D/E < 300%, MCap > $500M
+    - Momentum override: 5-day > 10% overrides quality
+    - Composite quality scoring
+    - IPO tier detection and display
+
+    Returns EPS, D/E ratio, Market Cap, 2-Day Momentum, Volatility, and IPO tier checks.
+    """
+    try:
+        yf_ticker = yf.Ticker(ticker)
+        info = yf_ticker.info
+
+        # Get fundamentals
+        eps = info.get('trailingEps', None)
+        de_ratio = info.get('debtToEquity', None)  # Yahoo returns as percentage (e.g., 29.7 for 29.7%)
+        market_cap = info.get('marketCap', None)
+
+        # Format market cap
+        if market_cap:
+            if market_cap >= 1e12:
+                mcap_str = f"{market_cap/1e12:.2f}T"
+            elif market_cap >= 1e9:
+                mcap_str = f"{market_cap/1e9:.2f}B"
+            elif market_cap >= 1e6:
+                mcap_str = f"{market_cap/1e6:.2f}M"
+            else:
+                mcap_str = f"{market_cap:,.0f}"
+        else:
+            mcap_str = "N/A"
+
+        # Calculate momentum and volatility from price data
+        two_day_momentum = None
+        five_day_momentum = None
+        volatility = None
+        trading_days = 0
+
+        if price_data is not None and len(price_data) >= 1:
+            trading_days = len(price_data)
+            try:
+                if len(price_data) >= 3:
+                    two_day_momentum = ((price_data['Close'].iloc[-1] / price_data['Close'].iloc[-3]) - 1) * 100
+                if len(price_data) >= 6:
+                    five_day_momentum = ((price_data['Close'].iloc[-1] / price_data['Close'].iloc[-6]) - 1) * 100
+                returns = price_data['Close'].pct_change().dropna() * 100
+                volatility = returns.std() if len(returns) > 0 else None
+            except Exception:
+                pass
+
+        # FIXING3: IPO Tier Detection
+        ipo_tier = None
+        ipo_tier_desc = None
+        is_new_stock = trading_days < 60
+
+        if trading_days <= 4:
+            ipo_tier = 'NO_TRADE'
+            ipo_tier_desc = 'Too new (< 5 days) - Not tradeable'
+        elif trading_days <= 10:
+            ipo_tier = 'BASIC'
+            ipo_tier_desc = f'{trading_days} days - Momentum-only analysis (25% position)'
+        elif trading_days <= 30:
+            ipo_tier = 'ENHANCED'
+            ipo_tier_desc = f'{trading_days} days - Enhanced analysis (50% position)'
+        elif trading_days <= 60:
+            ipo_tier = 'HYBRID'
+            ipo_tier_desc = f'{trading_days} days - Hybrid analysis (75% position)'
+        else:
+            ipo_tier = 'FULL'
+            ipo_tier_desc = f'{trading_days} days - Full analysis'
+
+        # FIXING3: Momentum override check
+        momentum_override = False
+        if five_day_momentum is not None and five_day_momentum >= 10.0:
+            momentum_override = True
+        elif two_day_momentum is not None and two_day_momentum >= 5.0:
+            momentum_override = True
+
+        # FIXING3: Relaxed thresholds
+        # EPS > -0.1 (was > 0)
+        eps_pass = eps is None or eps > -0.1
+        eps_value = f"{eps:.2f}" if eps is not None else "N/A"
+
+        # D/E < 300% (was < 100%)
+        de_pass = de_ratio is None or de_ratio < 300
+        de_value = f"{de_ratio:.1f}%" if de_ratio is not None else "N/A"
+
+        # Market Cap > $500M (was > $1B)
+        mcap_pass = market_cap is None or market_cap > 5e8
+
+        # FIXING3: 2-Day Momentum > 0.5% (was > 1%)
+        mom_pass = two_day_momentum is None or two_day_momentum > 0.5
+        mom_value = f"{two_day_momentum:+.2f}%" if two_day_momentum is not None else "N/A"
+
+        # 5-Day Momentum (new for FIXING3)
+        mom5_value = f"{five_day_momentum:+.2f}%" if five_day_momentum is not None else "N/A"
+
+        # Volatility (just for display, no pass/fail)
+        vol_value = f"{volatility:.2f}%" if volatility is not None else "N/A"
+        vol_level = "High" if volatility and volatility > 3 else "Normal" if volatility else "N/A"
+
+        # FIXING3: Calculate composite quality score (0-1)
+        quality_score = 0.0
+        if eps is not None:
+            if eps > 0.1:
+                quality_score += 0.25
+            elif eps > 0:
+                quality_score += 0.15
+            elif eps > -0.1:
+                quality_score += 0.05
+        else:
+            quality_score += 0.1  # Unknown = neutral
+
+        if de_ratio is not None:
+            if de_ratio < 50:
+                quality_score += 0.25
+            elif de_ratio < 100:
+                quality_score += 0.20
+            elif de_ratio < 200:
+                quality_score += 0.15
+            elif de_ratio < 300:
+                quality_score += 0.10
+        else:
+            quality_score += 0.15  # Unknown = slightly favorable
+
+        if market_cap is not None:
+            if market_cap > 5e9:
+                quality_score += 0.25
+            elif market_cap > 1e9:
+                quality_score += 0.20
+            elif market_cap > 5e8:
+                quality_score += 0.15
+        else:
+            quality_score += 0.1  # Unknown = neutral
+
+        if two_day_momentum is not None and two_day_momentum > 0:
+            quality_score += min(0.25, two_day_momentum / 10.0 * 0.25)
+
+        # Convert numpy booleans to Python booleans for JSON serialization
+        eps_pass = bool(eps_pass)
+        de_pass = bool(de_pass)
+        mcap_pass = bool(mcap_pass)
+        mom_pass = bool(mom_pass)
+
+        # FIXING3: Overall pass uses composite score + momentum override
+        overall_pass = quality_score >= 0.3 or momentum_override
+        if is_new_stock and ipo_tier == 'NO_TRADE':
+            overall_pass = False
+
+        return {
+            'eps': {
+                'value': eps_value,
+                'threshold': '> -0.1',  # FIXING3: Relaxed
+                'pass': eps_pass,
+                'result': 'PASS' if eps_pass else 'FAIL'
+            },
+            'debt_equity': {
+                'value': de_value,
+                'threshold': '< 300%',  # FIXING3: Relaxed from 100%
+                'pass': de_pass,
+                'result': 'PASS' if de_pass else 'FAIL'
+            },
+            'market_cap': {
+                'value': mcap_str,
+                'threshold': '> 500M',  # FIXING3: Relaxed from 1B
+                'pass': mcap_pass,
+                'result': 'PASS' if mcap_pass else 'FAIL'
+            },
+            'two_day_momentum': {
+                'value': mom_value,
+                'threshold': '> 0.5%',  # FIXING3: Relaxed from 1%
+                'pass': mom_pass,
+                'result': 'PASS' if mom_pass else 'FAIL'
+            },
+            'five_day_momentum': {
+                'value': mom5_value,
+                'threshold': '> 10% (override)',
+                'pass': bool(five_day_momentum and five_day_momentum >= 10.0),
+                'result': 'OVERRIDE' if momentum_override else 'N/A'
+            },
+            'volatility': {
+                'value': vol_value,
+                'threshold': '-',
+                'pass': True,
+                'result': vol_level
+            },
+            'ipo_status': {
+                'is_new_stock': is_new_stock,
+                'trading_days': trading_days,
+                'tier': ipo_tier,
+                'tier_description': ipo_tier_desc,
+                'can_trade': ipo_tier != 'NO_TRADE'
+            },
+            'quality_score': round(quality_score, 2),
+            'momentum_override': momentum_override,
+            'overall_pass': bool(overall_pass)
+        }
+    except Exception as e:
+        logger.warning(f"[QUALITY FILTER] Could not get quality filter data for {ticker}: {e}")
+        return None
+
+
 def calculate_standardized_confidence(predicted_return, historical_data, analysis_type='basic',
                                        asset_class='stock', ticker=None):
     """
@@ -1925,6 +2275,16 @@ def generate_prediction(ticker, account_size=100000, model_type=None):
         # Prepare features for prediction
         # NOTE: HybridEnsemble needs enough data for lookback window (up to 30 for stocks)
         # So we take last 60 samples to be safe (allows lookback + buffer for predictions)
+        # IPO/NEW STOCK FIX: Handle missing features due to adaptive windows
+        # When stocks have limited data, volatility features use smaller windows
+        # (e.g., parkinson_vol_15 vs parkinson_vol_60)
+        # Add missing feature columns with NaN (will be filled with 0 below)
+        missing_features = [col for col in feature_cols if col not in data_features.columns]
+        if missing_features:
+            logger.warning(f"[IPO FIX] Adding {len(missing_features)} missing features for {ticker}: {missing_features[:5]}...")
+            for col in missing_features:
+                data_features[col] = np.nan
+
         X_latest = data_features[feature_cols].tail(60)
 
         # CRITICAL: Clean features for prediction (handle inf/nan values)
@@ -1932,7 +2292,11 @@ def generate_prediction(ticker, account_size=100000, model_type=None):
         X_latest = pd.DataFrame(X_latest)  # Ensure it's a DataFrame
         X_latest = X_latest.replace([np.inf], 1e10)
         X_latest = X_latest.replace([-np.inf], -1e10)
-        X_latest = X_latest.fillna(0)
+        # FIXING9: Use safe historical means instead of zeros!
+        if FIXING9_AVAILABLE:
+            X_latest = safe_fill_missing_features(X_latest, verbose=False)
+        else:
+            X_latest = X_latest.fillna(0)
         # BUGFIX: Select numeric columns only for inf/nan checks to avoid TypeError with mixed dtypes
         X_numeric_cols = X_latest.select_dtypes(include=[np.number]).columns
         if len(X_numeric_cols) > 0:
@@ -2428,6 +2792,141 @@ def generate_prediction(ticker, account_size=100000, model_type=None):
         # Add Phase 1-6 analysis to response if available
         if phase6_analysis:
             prediction_response['phase6_analysis'] = phase6_analysis
+
+        # ============================================================================
+        # CHINA LAG-FREE TRANSITION DETECTION (Fix 62 Adaptation)
+        # Detects early warning signals for regime transitions to reduce lag
+        # ============================================================================
+        if is_china_stock and CHINA_TRANSITION_AVAILABLE and CHINA_TRANSITION_DETECTOR is not None:
+            try:
+                # Detect regime transition with lag-free early warning
+                transition_result = CHINA_TRANSITION_DETECTOR.detect_transition(
+                    data,
+                    current_regime=phase6_analysis.get('phase6', {}).get('vol_regime', 'NEUTRAL').upper() if phase6_analysis else 'NEUTRAL'
+                )
+
+                # Build transition analysis for response
+                transition_analysis = {
+                    'transition_type': transition_result.transition_type,
+                    'confidence': round(transition_result.confidence, 4),
+                    'is_transition': transition_result.is_transition,
+                    'signals_detected': transition_result.signals_detected,
+                    'is_confirmed': transition_result.is_confirmed,
+                    'blend_factor': round(transition_result.blend_factor, 4),
+                    'allocation_adjustment': round(transition_result.recommended_allocation_adjustment, 4),
+                    'recommended_actions': transition_result.recommended_actions
+                }
+
+                # Get regime-specific position sizing parameters
+                regime_map = {
+                    'BULL': {'max_allocation': 0.95, 'max_positions': 6, 'position_cap': 0.30, 'min_ev': 0.5},
+                    'BEAR': {'max_allocation': 0.70, 'max_positions': 4, 'position_cap': 0.20, 'min_ev': 1.0},
+                    'HIGH_VOL': {'max_allocation': 0.50, 'max_positions': 3, 'position_cap': 0.15, 'min_ev': 2.0},
+                    'NEUTRAL': {'max_allocation': 0.85, 'max_positions': 5, 'position_cap': 0.25, 'min_ev': 0.7}
+                }
+
+                # Determine current regime from transition or phase6
+                current_detected_regime = 'NEUTRAL'
+                if transition_result.is_confirmed:
+                    if transition_result.transition_type == 'TRANSITION_TO_BULL':
+                        current_detected_regime = 'BULL'
+                    elif transition_result.transition_type == 'TRANSITION_TO_BEAR':
+                        current_detected_regime = 'BEAR'
+                    elif transition_result.transition_type == 'HIGH_VOLATILITY':
+                        current_detected_regime = 'HIGH_VOL'
+
+                transition_analysis['current_regime'] = current_detected_regime
+                transition_analysis['regime_params'] = regime_map.get(current_detected_regime, regime_map['NEUTRAL'])
+
+                # Add transition analysis to response
+                prediction_response['china_transition'] = transition_analysis
+
+                # Log transition detection
+                if transition_result.is_transition:
+                    logger.info(f"[CHINA TRANSITION] {ticker}: {transition_result.transition_type} "
+                               f"(confidence: {transition_result.confidence:.2%}, "
+                               f"signals: {len(transition_result.signals_detected)})")
+
+            except Exception as e:
+                logger.warning(f"[CHINA TRANSITION] Detection failed for {ticker}: {e}")
+                prediction_response['china_transition'] = {'error': str(e), 'available': False}
+
+        # ============================================================================
+        # US PROFIT-MAXIMIZING REGIME ANALYSIS (from 'us model fixing8.pdf')
+        # Applies ONLY to US/International stocks - NOT China/DeepSeek model
+        # Features: Dynamic multiplier scaling, transition phase detection, Kelly sizing
+        # ============================================================================
+        if not is_china_stock and US_PROFIT_REGIME_AVAILABLE and US_PROFIT_REGIME_CLASSIFIER is not None:
+            try:
+                # Get SPY data for regime classification
+                spy_data = yf.download('SPY', period='6mo', progress=False)
+                if isinstance(spy_data.columns, pd.MultiIndex):
+                    spy_data.columns = spy_data.columns.get_level_values(0)
+
+                # Get current VIX
+                vix_data = yf.download('^VIX', period='1d', progress=False)
+                if isinstance(vix_data.columns, pd.MultiIndex):
+                    vix_data.columns = vix_data.columns.get_level_values(0)
+                current_vix = float(vix_data['Close'].iloc[-1]) if len(vix_data) > 0 else 20.0
+
+                # Build stock data for profit scoring
+                stock_metrics = {
+                    'ticker': ticker,
+                    '5d_return': float(predicted_return * 100) if predicted_return else 0,  # Use ML 5-day forecast
+                    'volume_ratio': 1.0,  # Default volume ratio
+                    'rsi': _calculate_rsi_simple(data['Close']) if len(data) >= 14 else 50,  # Calculate RSI from data
+                    'volatility': float(data['Close'].pct_change().std() * 100 * np.sqrt(252)) if len(data) >= 20 else 25,  # Calculate annualized vol
+                }
+
+                # Try to calculate volume ratio from data
+                if len(data) >= 10:
+                    vol = data['Volume']
+                    stock_metrics['volume_ratio'] = float(vol.iloc[-1] / vol.iloc[-10:].mean()) if vol.iloc[-10:].mean() > 0 else 1.0
+
+                # Get profit-maximizing regime classification
+                profit_regime = US_PROFIT_REGIME_CLASSIFIER.classify_regime_with_profit(
+                    spy_data, stock_metrics, current_vix
+                )
+
+                # Build US profit regime analysis for response
+                us_profit_analysis = {
+                    'regime': profit_regime.regime,
+                    'transition_state': profit_regime.transition_state,
+                    'transition_phase': profit_regime.transition_phase.value,
+                    'transition_day': profit_regime.transition_day,
+                    'profit_score': round(profit_regime.profit_score, 1),
+                    'dynamic_multiplier': round(profit_regime.dynamic_multiplier, 3),
+                    'recommended_position_size': round(profit_regime.recommended_position_size * 100, 2),
+                    'small_cap_multiplier': round(profit_regime.small_cap_multiplier, 2),
+                    'large_cap_multiplier': round(profit_regime.large_cap_multiplier, 2),
+                    'max_position_size': round(profit_regime.max_position_size * 100, 1),
+                    'stop_loss': round(profit_regime.stop_loss * 100, 1),
+                    'profit_targets': {
+                        'target_1': round(profit_regime.profit_target_1 * 100, 1),
+                        'target_2': round(profit_regime.profit_target_2 * 100, 1),
+                        'target_3': round(profit_regime.profit_target_3 * 100, 1),
+                        'trailing_stop': round(profit_regime.trailing_stop * 100, 1),
+                    },
+                    'position_params': {
+                        'max_positions': profit_regime.max_positions,
+                        'top_n_concentration': round(profit_regime.top_n_concentration * 100, 0),
+                        'sizing_method': profit_regime.position_sizing_method,
+                    },
+                    'capital_allocation': {k: round(v * 100, 1) for k, v in profit_regime.capital_allocation.items()},
+                    'sector_focus': profit_regime.sector_focus,
+                    'vix_level': round(current_vix, 1),
+                    'source': 'us_model_fixing8'
+                }
+
+                prediction_response['us_profit_regime'] = us_profit_analysis
+
+                logger.info(f"[US PROFIT REGIME] {ticker}: Score={profit_regime.profit_score:.1f}, "
+                           f"Mult={profit_regime.dynamic_multiplier:.3f}x, "
+                           f"Phase={profit_regime.transition_phase.value}")
+
+            except Exception as e:
+                logger.warning(f"[US PROFIT REGIME] Analysis failed for {ticker}: {e}")
+                prediction_response['us_profit_regime'] = {'error': str(e), 'available': False}
 
         # Generate news feed
         prediction_response['news_feed'] = generate_news_feed(ticker, company_info, current_price, prediction_response)
@@ -3019,6 +3518,16 @@ def predict(ticker):
                     'analysis_reason': deepseek_analysis.get('reason', '')
                 }
 
+            # Add quality filter checks for China stocks (Fixing2 display)
+            if is_china_stock:
+                try:
+                    quality_checks = get_quality_filter_checks(ticker, test_data)
+                    if quality_checks:
+                        prediction['quality_filter'] = quality_checks
+                        logger.info(f"[BASIC ANALYSIS] China {ticker}: Quality filter overall_pass={quality_checks['overall_pass']}")
+                except Exception as e:
+                    logger.warning(f"[BASIC ANALYSIS] Could not get quality filter for {ticker}: {e}")
+
             # Generate news feed for basic analysis too
             try:
                 news_feed = generate_news_feed(ticker, stock_info, current_price, prediction)
@@ -3096,12 +3605,34 @@ def predict(ticker):
                 'social_sentiment': deepseek_analysis.get('social_sentiment', 0),
                 'analysis_reason': deepseek_analysis.get('reason', '')
             }
+
+            # Add quality filter checks for China Model Fixing2 display
+            try:
+                # Fetch recent price data for quality filter calculations
+                qf_data = fetch_data(ticker, lookback_days=30)
+                quality_checks = get_quality_filter_checks(ticker, qf_data)
+                if quality_checks:
+                    prediction['quality_filter'] = quality_checks
+                    logger.info(f"[PREDICT] China {ticker}: Quality filter overall_pass={quality_checks['overall_pass']}")
+            except Exception as e:
+                logger.warning(f"[PREDICT] Could not get quality filter for {ticker}: {e}")
     else:
         # CRITICAL FIX: Use lock to prevent race condition with parallel top-picks processing
         # Without this lock, concurrent requests can cause results to be returned for wrong tickers
         # (e.g., META returning 3690.HK Meituan data, TM returning 300059.SZ East Money data)
         with PREDICTION_LOCK:
             prediction = generate_prediction(ticker, account_size)
+
+        # Add quality filter checks for US/Intl stocks too
+        if prediction.get('status') == 'success':
+            try:
+                qf_data = fetch_data(ticker, lookback_days=30)
+                quality_checks = get_quality_filter_checks(ticker, qf_data)
+                if quality_checks:
+                    prediction['quality_filter'] = quality_checks
+                    logger.info(f"[PREDICT] US/Intl {ticker}: Quality filter overall_pass={quality_checks['overall_pass']}")
+            except Exception as e:
+                logger.warning(f"[PREDICT] Could not get quality filter for {ticker}: {e}")
 
     # Return proper HTTP status code based on prediction status
     if prediction.get('status') == 'error':
@@ -3279,15 +3810,19 @@ def _generate_pick_for_ticker(ticker):
             try:
                 stock_info = yf.Ticker(ticker).info
                 company_name = stock_info.get('longName') or stock_info.get('shortName') or ticker
-                # Determine asset type from ticker pattern
+                quote_type = stock_info.get('quoteType', '').upper()
+
+                # Determine asset type from ticker pattern and Yahoo quoteType
                 if ticker.endswith('.HK') or ticker.endswith('.SS') or ticker.endswith('.SZ'):
                     asset_type = 'Stock'  # China stock
-                elif '-USD' in ticker:
+                elif '-USD' in ticker or quote_type == 'CRYPTOCURRENCY':
                     asset_type = 'Cryptocurrency'
-                elif '=F' in ticker:
+                elif '=F' in ticker or quote_type == 'FUTURE':
                     asset_type = 'Commodity'
-                elif '=X' in ticker:
+                elif '=X' in ticker or quote_type == 'CURRENCY':
                     asset_type = 'Forex'
+                elif quote_type == 'ETF':
+                    asset_type = 'ETF'  # Identify ETFs from Yahoo quoteType
                 else:
                     asset_type = 'Stock'  # Default to stock
             except Exception:
@@ -3739,6 +4274,32 @@ def top_picks():
             cached_data['from_cache'] = True
             cached_data['cache_age_seconds'] = int(age_seconds)
             cached_data['cache_ttl_seconds'] = cache_ttl
+
+            # Always add fresh market_trend_adaptation (even for cached data)
+            # This ensures trend info is always current since market trends change
+            if PROFIT_OPTIMIZER_AVAILABLE and regime != 'China':
+                try:
+                    from src.trading.integrated_us_optimizer import create_integrated_optimizer
+                    temp_optimizer = create_integrated_optimizer(
+                        enable_energy=False, enable_commodity=False,
+                        enable_dividend=False, enable_futures=False,
+                        enable_trend=True  # Only need trend adapter
+                    )
+                    trend_info = temp_optimizer.get_current_trend()
+                    cached_data['market_trend_adaptation'] = {
+                        'enabled': True,
+                        'current_trend': trend_info.get('trend', 'unknown'),
+                        'trend_description': trend_info.get('description', ''),
+                        'buy_win_rate': trend_info.get('buy_win_rate', 0.5),
+                        'sell_win_rate': trend_info.get('sell_win_rate', 0.5),
+                        'recommendation': trend_info.get('recommendation', 'Balanced'),
+                        'from_cache': True,  # Mark as added to cached response
+                        'message': f"Market trend: {trend_info.get('trend', 'unknown')} - {trend_info.get('recommendation', 'Balanced')}"
+                    }
+                    logger.info(f"[CACHE HIT] Added market_trend_adaptation: {trend_info.get('trend', 'unknown')}")
+                except Exception as e:
+                    logger.debug(f"[CACHE HIT] Could not add trend info: {e}")
+
             return jsonify(cached_data)
         else:
             logger.info(f"[CACHE EXPIRED] Cache for {regime} is {age_seconds:.0f}s old (TTL: {cache_ttl}s), refreshing...")
@@ -3765,11 +4326,22 @@ def top_picks():
                 strategy = get_regime_strategy()
                 screener_tickers, source = strategy.get_tickers_for_regime(regime, count=25)
 
-                if screener_tickers and len(screener_tickers) >= 5:
+                # IPO regimes have lower minimum threshold since IPOs are rare
+                # For IPO regimes, 0 results is valid (no current IPOs) - don't throw error
+                min_tickers = 1 if regime in ['US_IPO', 'China_IPO'] else 5
+                is_ipo_regime = regime in ['US_IPO', 'China_IPO']
+
+                if screener_tickers and len(screener_tickers) >= min_tickers:
                     tickers = screener_tickers
                     ticker_source = source
                     reliability_mgr.track_performance(regime, True)
                     logger.info(f"[SCREENER SUCCESS] Found {len(tickers)} real-time tickers from {source}")
+                elif is_ipo_regime:
+                    # For IPO regimes, 0 results is valid - no current IPOs in market
+                    tickers = screener_tickers if screener_tickers else []
+                    ticker_source = source
+                    reliability_mgr.track_performance(regime, True)
+                    logger.info(f"[IPO REGIME] Found {len(tickers)} actual IPOs - this is valid (IPOs are rare)")
                 else:
                     raise Exception(f"Insufficient tickers from screener: {len(screener_tickers) if screener_tickers else 0}")
             else:
@@ -3816,16 +4388,17 @@ def top_picks():
 
     # Choose the appropriate prediction function based on regime
     # China regime uses DeepSeek API + China ML model
-    if regime == 'China':
+    # IPO regimes use respective prediction functions with IPO tier info
+    if regime == 'China' or regime == 'China_IPO':
         prediction_func = _generate_china_pick_for_ticker
-        logger.info("[CHINA] Using DeepSeek + China ML model for predictions")
+        logger.info(f"[{regime}] Using DeepSeek + China ML model for predictions")
     else:
         prediction_func = _generate_pick_for_ticker
 
     # Use ThreadPoolExecutor to process tickers in parallel
     # Limit max_workers to 5 to avoid overwhelming the system
     # For China regime, use fewer workers to avoid API rate limiting
-    max_workers = 3 if regime == 'China' else min(5, len(tickers))
+    max_workers = 3 if regime in ['China', 'China_IPO'] else min(5, len(tickers))
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all ticker prediction tasks
@@ -3853,6 +4426,11 @@ def top_picks():
     # This prevents confusing situations where a HOLD signal appears in BUY/SELL lists
     bullish = []
     bearish = []
+
+    # DEBUG: Log direction values for first 5 predictions
+    for i, p in enumerate(all_predictions[:5]):
+        logger.info(f"[DEBUG] Prediction {i+1}: ticker={p.get('ticker')}, direction={p.get('direction')}, confidence={p.get('confidence')}")
+
     for p in all_predictions:
         direction = p.get('direction', 0)
 
@@ -3868,12 +4446,44 @@ def top_picks():
     logger.info(f"Classification: {len(bullish)} bullish, {len(bearish)} bearish (from {len(all_predictions)} predictions, excluding HOLD signals)")
 
     # ========================================================================
+    # IPO REGIME: Show momentum-driven stocks with IPO tier info
+    # For US_IPO and China_IPO tabs, show all results from screeners
+    # (which fetch gainers/active/volatile stocks) with IPO tier annotations
+    # ========================================================================
+    if regime in ['US_IPO', 'China_IPO']:
+        logger.info(f"[IPO TAB] Processing {regime} - showing momentum-driven stocks with IPO tier info")
+
+        # Add IPO tier info to all predictions for display
+        for p in bullish + bearish:
+            days = p.get('days_available', p.get('trading_days', 100))
+            if days <= 4:
+                p['ipo_tier'] = 'NO_TRADE'
+                p['ipo_tier_desc'] = 'Too new (< 5 days)'
+            elif days <= 10:
+                p['ipo_tier'] = 'BASIC'
+                p['ipo_tier_desc'] = f'{days} days - Momentum only (25% position)'
+            elif days <= 30:
+                p['ipo_tier'] = 'ENHANCED'
+                p['ipo_tier_desc'] = f'{days} days - Enhanced (50% position)'
+            elif days <= 60:
+                p['ipo_tier'] = 'HYBRID'
+                p['ipo_tier_desc'] = f'{days} days - Hybrid (75% position)'
+            else:
+                p['ipo_tier'] = 'FULL'
+                p['ipo_tier_desc'] = f'{days} days - Full analysis'
+
+        # Count new stocks for logging
+        new_count = sum(1 for p in bullish + bearish if p.get('days_available', 100) < 60)
+        logger.info(f"[IPO TAB] {len(bullish)} BUYs, {len(bearish)} SELLs ({new_count} are new stocks < 60 days)")
+
+    # ========================================================================
     # ENHANCED SIGNAL VALIDATION FOR CHINA REGIME
     # Filters dangerous shorts that cause catastrophic losses
     # Based on analysis showing SELL signals lost -94.3% vs BUY signals +92.9%
     # ========================================================================
     blocked_shorts = []  # Initialize here so it's available for response
 
+    # Note: China_IPO excluded - IPO stocks have limited data, don't block their signals
     if regime == 'China' and ENHANCED_SIGNAL_VALIDATOR_AVAILABLE and ENHANCED_PHASE_SYSTEM:
         logger.info("[SIGNAL VALIDATION] Applying enhanced short protection for China regime")
 
@@ -3940,7 +4550,7 @@ def top_picks():
     # Fixes 17-18: Adaptive blocking for JPY SELL and Crude Oil
     # Fix 19: Dynamic position adjustment based on market regime
     # ========================================================================
-    if regime != 'China':
+    if regime not in ['China', 'China_IPO', 'US_IPO']:  # Skip US/INTL optimizer for China and IPO regimes
         # Create optimizer instance with all 19 fixes
         us_intl_optimizer = create_optimizer(
             enable_kelly=True,
@@ -3948,6 +4558,29 @@ def top_picks():
             enable_regime_adjustment=True,  # Fix 19
             enable_adaptive_blocking=True,  # Fixes 17 & 18
         )
+
+        # NEW: Create IntegratedUSOptimizer for profit maximization
+        # Priority 1: Energy subsector optimization (fixes -82% energy loss)
+        # Priority 2: Commodity dominance classification (fixes -91% mining loss)
+        # Priority 3: Dividend-aware optimization (improves financials)
+        # Priority 4: Market trend adaptation (fixes BUY/SELL asymmetry in downtrends)
+        profit_optimizer = None
+        if PROFIT_OPTIMIZER_AVAILABLE:
+            try:
+                profit_optimizer = create_integrated_optimizer(
+                    enable_energy=True,
+                    enable_commodity=True,
+                    enable_dividend=True,
+                    enable_futures=True,
+                    enable_trend=True,  # Priority 4: Dynamic market trend adaptation
+                )
+                logger.info("[PROFIT OPTIMIZER] Created IntegratedUSOptimizer with energy/commodity/dividend/trend optimization")
+                # Log current market trend
+                trend_info = profit_optimizer.get_current_trend()
+                logger.info(f"[MARKET TREND] Current: {trend_info.get('trend', 'unknown')} - {trend_info.get('description', '')}")
+            except Exception as e:
+                logger.warning(f"[PROFIT OPTIMIZER] Failed to create: {e}")
+                profit_optimizer = None
 
         # Update market regime for adaptive blocking and position adjustment
         # Get market indicators from yfinance if available
@@ -4051,6 +4684,37 @@ def top_picks():
                 adjusted_position_pct *= adaptive_reduction
                 logger.info(f"[ADAPTIVE REDUCE] {ticker}: {adaptive_reduction:.0%} position -> {adjusted_position_pct:.1f}%")
 
+            # NEW: Apply profit maximization optimizer (energy/commodity/dividend)
+            profit_opt_result = None
+            profit_position_mult = 1.0
+            if profit_optimizer:
+                try:
+                    profit_opt_result = profit_optimizer.optimize_signal(
+                        ticker=ticker,
+                        signal_type='SELL',
+                        confidence=confidence,
+                        volatility=0.25,
+                        momentum=0.0,
+                    )
+                    if not profit_opt_result.should_trade:
+                        # Profit optimizer blocked this signal
+                        blocked_sells_usintl.append({
+                            'ticker': ticker,
+                            'name': p.get('name', ticker),
+                            'reason': f'Profit optimizer: {profit_opt_result.adjustment_reason}',
+                            'original_confidence': confidence
+                        })
+                        logger.info(f"[PROFIT OPTIMIZER SELL BLOCKED] {ticker}: {profit_opt_result.adjustment_reason}")
+                        continue
+                    # Apply profit optimizer position multiplier
+                    profit_position_mult = profit_opt_result.position_multiplier
+                    adjusted_position_pct *= profit_position_mult
+                    logger.debug(f"[PROFIT OPTIMIZER] {ticker} ({profit_opt_result.category}): "
+                                f"conf {confidence:.2f}->{profit_opt_result.adjusted_confidence:.2f}, "
+                                f"pos_mult={profit_position_mult:.2f}")
+                except Exception as e:
+                    logger.warning(f"[PROFIT OPTIMIZER] Error for {ticker}: {e}")
+
             # Apply optimizer results with regime adjustment
             p['position_size_pct'] = adjusted_position_pct
             p['sell_position_reduced'] = True
@@ -4072,6 +4736,19 @@ def top_picks():
                 'adaptive_reduction': adaptive_reason if adaptive_reduction < 1.0 else None,
                 'adaptive_multiplier': adaptive_reduction,
             }
+
+            # Add profit optimizer metadata if applied
+            if profit_opt_result:
+                p['profit_optimization'] = {
+                    'category': profit_opt_result.category,
+                    'original_confidence': profit_opt_result.original_confidence,
+                    'adjusted_confidence': profit_opt_result.adjusted_confidence,
+                    'position_multiplier': profit_opt_result.position_multiplier,
+                    'adjustment_reason': profit_opt_result.adjustment_reason,
+                    'market_trend': profit_opt_result.market_trend,
+                    'trend_multiplier': profit_opt_result.trend_multiplier,
+                    'trend_win_rate': profit_opt_result.trend_win_rate,
+                }
 
             filtered_bearish.append(p)
 
@@ -4146,6 +4823,37 @@ def top_picks():
                 adjusted_position_pct *= adaptive_reduction
                 logger.info(f"[ADAPTIVE REDUCE BUY] {ticker}: {adaptive_reduction:.0%} position -> {adjusted_position_pct:.1f}%")
 
+            # NEW: Apply profit maximization optimizer (energy/commodity/dividend)
+            profit_opt_result = None
+            profit_position_mult = 1.0
+            if profit_optimizer:
+                try:
+                    profit_opt_result = profit_optimizer.optimize_signal(
+                        ticker=ticker,
+                        signal_type='BUY',
+                        confidence=confidence,
+                        volatility=0.25,
+                        momentum=0.0,
+                    )
+                    if not profit_opt_result.should_trade:
+                        # Profit optimizer blocked this signal
+                        blocked_buys_usintl.append({
+                            'ticker': ticker,
+                            'name': p.get('name', ticker),
+                            'reason': f'Profit optimizer: {profit_opt_result.adjustment_reason}',
+                            'original_confidence': confidence
+                        })
+                        logger.info(f"[PROFIT OPTIMIZER BUY BLOCKED] {ticker}: {profit_opt_result.adjustment_reason}")
+                        continue
+                    # Apply profit optimizer position multiplier
+                    profit_position_mult = profit_opt_result.position_multiplier
+                    adjusted_position_pct *= profit_position_mult
+                    logger.debug(f"[PROFIT OPTIMIZER BUY] {ticker} ({profit_opt_result.category}): "
+                                f"conf {confidence:.2f}->{profit_opt_result.adjusted_confidence:.2f}, "
+                                f"pos_mult={profit_position_mult:.2f}")
+                except Exception as e:
+                    logger.warning(f"[PROFIT OPTIMIZER] Error for BUY {ticker}: {e}")
+
             # Apply optimizer results with regime adjustment
             p['position_size_pct'] = adjusted_position_pct
             p['buy_position_boost'] = result.position_multiplier
@@ -4165,6 +4873,19 @@ def top_picks():
                 'adaptive_reduction': adaptive_reason if adaptive_reduction < 1.0 else None,
                 'adaptive_multiplier': adaptive_reduction,
             }
+
+            # Add profit optimizer metadata if applied
+            if profit_opt_result:
+                p['profit_optimization'] = {
+                    'category': profit_opt_result.category,
+                    'original_confidence': profit_opt_result.original_confidence,
+                    'adjusted_confidence': profit_opt_result.adjusted_confidence,
+                    'position_multiplier': profit_opt_result.position_multiplier,
+                    'adjustment_reason': profit_opt_result.adjustment_reason,
+                    'market_trend': profit_opt_result.market_trend,
+                    'trend_multiplier': profit_opt_result.trend_multiplier,
+                    'trend_win_rate': profit_opt_result.trend_win_rate,
+                }
 
             filtered_bullish.append(p)
 
@@ -4350,14 +5071,19 @@ def top_picks():
 
     # STRICT TYPE FILTERING: Only show assets matching selected regime
     # This ensures Stock page shows ONLY stocks, Crypto shows ONLY crypto, etc.
-    # EXCEPTION: China regime is geographic, not asset type - skip type filtering
-    if regime != 'all' and regime != 'China':
+    # EXCEPTION: China, China_IPO, US_IPO regimes are special - skip type filtering
+    # IPO regimes contain stocks with type='Stock', not type='US_IPO'
+    skip_type_filter_regimes = ['all', 'China', 'China_IPO', 'US_IPO']
+    if regime not in skip_type_filter_regimes:
         bullish = [p for p in bullish if p.get('type') == regime]
         bearish = [p for p in bearish if p.get('type') == regime]
         logger.info(f"[FILTER] After strict {regime} filter: {len(bullish)} buys, {len(bearish)} sells")
-    elif regime == 'China':
-        # China regime already selected only China market tickers, no type filtering needed
-        logger.info(f"[CHINA] Showing all China market picks: {len(bullish)} buys, {len(bearish)} sells")
+    elif regime in ['China', 'China_IPO']:
+        # China regimes already selected only China market tickers, no type filtering needed
+        logger.info(f"[{regime}] Showing all China market picks: {len(bullish)} buys, {len(bearish)} sells")
+    elif regime == 'US_IPO':
+        # US_IPO contains US stocks with type='Stock', skip type filtering
+        logger.info(f"[US_IPO] Showing all US IPO/momentum picks: {len(bullish)} buys, {len(bearish)} sells")
     else:
         # For 'all' regime - NO type cap, pure profit-based ranking
         # Highest expected return wins, regardless of asset type
@@ -4403,7 +5129,7 @@ def top_picks():
         }
 
     # Add US/Intl optimization info (for non-China regimes)
-    if regime != 'China':
+    if regime not in ['China', 'China_IPO', 'US_IPO']:  # Skip US/INTL optimizer for China and IPO regimes
         result['us_intl_optimization'] = {
             'applied': True,
             'sell_optimization': {
@@ -4431,6 +5157,86 @@ def top_picks():
             },
             'message': 'US/Intl model fixing1 active - higher SELL thresholds, position sizing, stop-losses'
         }
+
+        # Add market trend info from profit optimizer (Priority 4)
+        if PROFIT_OPTIMIZER_AVAILABLE and 'profit_optimizer' in locals() and profit_optimizer is not None:
+            try:
+                trend_info = profit_optimizer.get_current_trend()
+                opt_stats = profit_optimizer.get_statistics()
+                result['market_trend_adaptation'] = {
+                    'enabled': True,
+                    'current_trend': trend_info.get('trend', 'unknown'),
+                    'trend_description': trend_info.get('description', ''),
+                    'buy_win_rate': trend_info.get('buy_win_rate', 0.5),
+                    'sell_win_rate': trend_info.get('sell_win_rate', 0.5),
+                    'recommendation': trend_info.get('recommendation', 'Balanced'),
+                    'signals_trend_adjusted': opt_stats.get('trend_adjusted', 0),
+                    'signals_blocked': opt_stats.get('blocked_signals', 0),
+                    'message': f"Market trend: {trend_info.get('trend', 'unknown')} - {trend_info.get('recommendation', 'Balanced')}"
+                }
+                logger.info(f"[API] Added market_trend_adaptation: {trend_info.get('trend', 'unknown')}")
+            except Exception as e:
+                logger.warning(f"[MARKET TREND] Error getting trend info: {e}")
+        else:
+            logger.debug(f"[MARKET TREND] Skipped - PROFIT_OPTIMIZER_AVAILABLE={PROFIT_OPTIMIZER_AVAILABLE}, profit_optimizer exists={'profit_optimizer' in locals()}")
+
+        # ====================================================================
+        # US MODEL FIXING7 & FIXING8: Lag-Free Regime & Profit Maximization
+        # Adds regime detection, transition phases, dynamic multipliers
+        # ====================================================================
+        if US_PROFIT_REGIME_AVAILABLE and US_PROFIT_REGIME_CLASSIFIER is not None:
+            try:
+                import yfinance as yf
+                # Get SPY data for regime classification
+                spy_data = yf.download('SPY', period='6mo', progress=False)
+                if isinstance(spy_data.columns, pd.MultiIndex):
+                    spy_data.columns = spy_data.columns.get_level_values(0)
+
+                # Get current VIX
+                vix_data = yf.download('^VIX', period='1d', progress=False)
+                if isinstance(vix_data.columns, pd.MultiIndex):
+                    vix_data.columns = vix_data.columns.get_level_values(0)
+                current_vix = float(vix_data['Close'].iloc[-1]) if len(vix_data) > 0 else 20.0
+
+                # Get profit-maximizing regime classification
+                profit_regime = US_PROFIT_REGIME_CLASSIFIER.classify_regime_with_profit(
+                    spy_data, None, current_vix
+                )
+
+                result['us_lag_free_regime'] = {
+                    'source': 'us_model_fixing7_fixing8',
+                    'regime': profit_regime.regime,
+                    'transition_state': profit_regime.transition_state,
+                    'transition_phase': profit_regime.transition_phase.value,
+                    'transition_day': profit_regime.transition_day,
+                    'profit_score': round(profit_regime.profit_score, 1),
+                    'dynamic_multiplier': round(profit_regime.dynamic_multiplier, 3),
+                    'buy_multiplier': round(profit_regime.base_output.buy_multiplier, 3),
+                    'sell_multiplier': round(profit_regime.base_output.sell_multiplier, 3),
+                    'signals_detected': profit_regime.base_output.signals_detected,
+                    'position_params': {
+                        'small_cap_multiplier': round(profit_regime.small_cap_multiplier, 2),
+                        'large_cap_multiplier': round(profit_regime.large_cap_multiplier, 2),
+                        'max_position_size': round(profit_regime.max_position_size * 100, 1),
+                        'stop_loss': round(profit_regime.stop_loss * 100, 1),
+                        'max_positions': profit_regime.max_positions,
+                        'sizing_method': profit_regime.position_sizing_method,
+                    },
+                    'profit_targets': {
+                        'target_1': round(profit_regime.profit_target_1 * 100, 1),
+                        'target_2': round(profit_regime.profit_target_2 * 100, 1),
+                        'target_3': round(profit_regime.profit_target_3 * 100, 1),
+                        'trailing_stop': round(profit_regime.trailing_stop * 100, 1),
+                    },
+                    'capital_allocation': {k: round(v * 100, 1) for k, v in profit_regime.capital_allocation.items()},
+                    'sector_focus': profit_regime.sector_focus,
+                    'vix_level': round(current_vix, 1),
+                    'confidence': round(profit_regime.base_output.confidence, 3),
+                }
+                logger.info(f"[US FIXING7/8] Regime: {profit_regime.regime}, Phase: {profit_regime.transition_phase.value}, Mult: {profit_regime.dynamic_multiplier:.3f}x")
+            except Exception as e:
+                logger.warning(f"[US FIXING7/8] Error getting lag-free regime: {e}")
+                result['us_lag_free_regime'] = {'error': str(e), 'available': False}
 
     # Cache the results
     TOP_PICKS_CACHE[cache_key] = (result.copy(), datetime.now())
@@ -4499,6 +5305,20 @@ def realtime_yahoo_test():
     # Generate summary
     summary = _generate_analysis_summary(buy_analysis, sell_analysis, regime)
 
+    # NEW: Add profit maximization analysis if available (fixing6)
+    profit_maximization = None
+    if PROFIT_MAXIMIZER_AVAILABLE and buy_analysis:
+        try:
+            strategy = create_complete_strategy(capital=10000)
+            profit_maximization = strategy.analyze_opportunities(
+                buy_signals=buy_analysis,
+                sell_signals=sell_analysis,
+            )
+            logger.info(f"[PROFIT MAXIMIZER] Generated profit maximization analysis")
+        except Exception as e:
+            logger.warning(f"[PROFIT MAXIMIZER] Analysis failed: {e}")
+            profit_maximization = {'error': str(e)}
+
     return jsonify({
         'regime': regime,
         'timestamp': datetime.now().isoformat(),
@@ -4511,7 +5331,145 @@ def realtime_yahoo_test():
             buy_analysis,
             key=lambda x: x.get('expected_value', 0),
             reverse=True
-        )[:5]
+        )[:5],
+        'profit_maximization': profit_maximization,
+    })
+
+
+@app.route('/api/top-picks/profit-maximize')
+def profit_maximize_portfolio():
+    """
+    Run Profit Maximization Strategy on current top picks (fixing6.pdf).
+
+    Uses EV-based position sizing to:
+    - Concentrate capital on highest EV opportunities
+    - Filter out negative and low EV signals
+    - Provide dynamic position sizing based on EV tiers
+    - Generate execution plan for maximum profit
+
+    Excludes China regime (handled separately).
+    """
+    if not PROFIT_MAXIMIZER_AVAILABLE:
+        return jsonify({
+            'error': 'Profit Maximizer not available',
+            'message': 'The profit_maximizer module could not be loaded'
+        }), 500
+
+    regime = request.args.get('regime', 'Stock')
+    capital = float(request.args.get('capital', 10000))
+    concentrated = request.args.get('concentrated', 'false').lower() == 'true'
+
+    # Exclude China - handled separately
+    if regime == 'China':
+        return jsonify({
+            'error': 'China regime uses separate analysis system',
+            'message': 'Please use the China-specific analysis tools'
+        }), 400
+
+    # Get current top picks from cache
+    cache_key = f"top_picks_{regime}"
+    if cache_key not in TOP_PICKS_CACHE:
+        return jsonify({
+            'error': 'No top picks available for this regime',
+            'message': 'Please refresh the top picks first'
+        }), 404
+
+    cached_data, cache_time = TOP_PICKS_CACHE[cache_key]
+
+    # Extract buy and sell signals
+    buy_signals = [(p.get('ticker'), p.get('confidence', 50)) for p in cached_data.get('top_buys', [])]
+    sell_signals = [(p.get('ticker'), p.get('confidence', 50)) for p in cached_data.get('top_sells', [])]
+
+    logger.info(f"[PROFIT MAXIMIZE] Analyzing {len(buy_signals)} BUY and {len(sell_signals)} SELL signals for {regime}")
+
+    # Run real-time analysis to get detailed signal data
+    buy_analysis = []
+    sell_analysis = []
+
+    for ticker, confidence in buy_signals[:10]:
+        if ticker:
+            analysis = _analyze_ticker_realtime(ticker, confidence, 'BUY')
+            if analysis:
+                buy_analysis.append(analysis)
+
+    for ticker, confidence in sell_signals[:10]:
+        if ticker:
+            analysis = _analyze_ticker_realtime(ticker, confidence, 'SELL')
+            if analysis:
+                sell_analysis.append(analysis)
+
+    # Create profit maximization strategy
+    strategy = create_complete_strategy(capital=capital)
+
+    # Get full analysis or concentrated portfolio
+    if concentrated:
+        result = strategy.get_concentrated_portfolio(
+            buy_signals=buy_analysis,
+            sell_signals=sell_analysis,
+            max_positions=5,
+        )
+        result['analysis_type'] = 'concentrated'
+    else:
+        result = strategy.analyze_opportunities(
+            buy_signals=buy_analysis,
+            sell_signals=sell_analysis,
+        )
+        result['analysis_type'] = 'full'
+
+    # Add EV tier breakdown
+    ev_breakdown = {
+        'exceptional': [],  # EV > 10
+        'excellent': [],    # EV 5-10
+        'good': [],         # EV 2-5
+        'moderate': [],     # EV 1-2
+        'low': [],          # EV 0-1
+        'skip': [],         # EV < 0
+    }
+
+    for signal in buy_analysis + sell_analysis:
+        ev = signal.get('expected_value', 0)
+        ticker = signal.get('ticker')
+        signal_type = 'BUY' if signal in buy_analysis else 'SELL'
+        entry = {
+            'ticker': ticker,
+            'type': signal_type,
+            'ev': ev,
+            'profit_5d': signal.get('potential_gain_5d', 0),
+            'confidence': signal.get('confidence', 0),
+        }
+
+        if ev > 10:
+            ev_breakdown['exceptional'].append(entry)
+        elif ev >= 5:
+            ev_breakdown['excellent'].append(entry)
+        elif ev >= 2:
+            ev_breakdown['good'].append(entry)
+        elif ev >= 1:
+            ev_breakdown['moderate'].append(entry)
+        elif ev >= 0:
+            ev_breakdown['low'].append(entry)
+        else:
+            ev_breakdown['skip'].append(entry)
+
+    return jsonify({
+        'regime': regime,
+        'capital': capital,
+        'timestamp': datetime.now().isoformat(),
+        'cache_age_seconds': int((datetime.now() - cache_time).total_seconds()),
+        'profit_maximization': result,
+        'ev_tier_breakdown': ev_breakdown,
+        'strategy_info': {
+            'name': 'EV-Based Profit Maximization (fixing6)',
+            'description': 'Concentrates capital on highest Expected Value opportunities',
+            'ev_rules': {
+                'exceptional': {'ev': '>10', 'position': '20-35%', 'action': 'Strong BUY'},
+                'excellent': {'ev': '5-10', 'position': '15-25%', 'action': 'BUY'},
+                'good': {'ev': '2-5', 'position': '10-20%', 'action': 'BUY'},
+                'moderate': {'ev': '1-2', 'position': '5-15%', 'action': 'Consider'},
+                'low': {'ev': '0-1', 'position': '2-10%', 'action': 'Skip or minimal'},
+                'negative': {'ev': '<0', 'position': '0%', 'action': 'DO NOT TRADE'},
+            },
+        },
     })
 
 
@@ -4558,6 +5516,62 @@ def predict_market_trend():
     # 5. Get profit-maximizing actions
     profit_actions = _get_profit_maximizing_actions(market_regime, trend_analysis, trade_signals)
 
+    # 6. Get US Model Fixing7/8 lag-free regime analysis
+    us_lag_free_regime = None
+    if US_PROFIT_REGIME_AVAILABLE and US_PROFIT_REGIME_CLASSIFIER is not None:
+        try:
+            import yfinance as yf
+            # Get SPY data for regime classification
+            spy_data = yf.download('SPY', period='6mo', progress=False)
+            if isinstance(spy_data.columns, pd.MultiIndex):
+                spy_data.columns = spy_data.columns.get_level_values(0)
+
+            # Get current VIX
+            vix_data = yf.download('^VIX', period='1d', progress=False)
+            if isinstance(vix_data.columns, pd.MultiIndex):
+                vix_data.columns = vix_data.columns.get_level_values(0)
+            current_vix = float(vix_data['Close'].iloc[-1]) if len(vix_data) > 0 else 20.0
+
+            # Get profit-maximizing regime classification
+            profit_regime = US_PROFIT_REGIME_CLASSIFIER.classify_regime_with_profit(
+                spy_data, None, current_vix
+            )
+
+            us_lag_free_regime = {
+                'source': 'us_model_fixing7_fixing8',
+                'regime': profit_regime.regime,
+                'transition_state': profit_regime.transition_state,
+                'transition_phase': profit_regime.transition_phase.value,
+                'transition_day': profit_regime.transition_day,
+                'profit_score': round(profit_regime.profit_score, 1),
+                'dynamic_multiplier': round(profit_regime.dynamic_multiplier, 3),
+                'buy_multiplier': round(profit_regime.base_output.buy_multiplier, 3),
+                'sell_multiplier': round(profit_regime.base_output.sell_multiplier, 3),
+                'signals_detected': profit_regime.base_output.signals_detected,
+                'position_params': {
+                    'small_cap_multiplier': round(profit_regime.small_cap_multiplier, 2),
+                    'large_cap_multiplier': round(profit_regime.large_cap_multiplier, 2),
+                    'max_position_size': round(profit_regime.max_position_size * 100, 1),
+                    'stop_loss': round(profit_regime.stop_loss * 100, 1),
+                    'max_positions': profit_regime.max_positions,
+                    'sizing_method': profit_regime.position_sizing_method,
+                },
+                'profit_targets': {
+                    'target_1': round(profit_regime.profit_target_1 * 100, 1),
+                    'target_2': round(profit_regime.profit_target_2 * 100, 1),
+                    'target_3': round(profit_regime.profit_target_3 * 100, 1),
+                    'trailing_stop': round(profit_regime.trailing_stop * 100, 1),
+                },
+                'capital_allocation': {k: round(v * 100, 1) for k, v in profit_regime.capital_allocation.items()},
+                'sector_focus': profit_regime.sector_focus,
+                'vix_level': round(current_vix, 1),
+                'confidence': round(profit_regime.base_output.confidence, 3),
+            }
+            logger.info(f"[ML ANALYSIS FIXING7/8] Regime: {profit_regime.regime}, Phase: {profit_regime.transition_phase.value}")
+        except Exception as e:
+            logger.warning(f"[ML ANALYSIS FIXING7/8] Error: {e}")
+            us_lag_free_regime = {'error': str(e), 'available': False}
+
     return jsonify({
         'regime': regime,
         'timestamp': datetime.now().isoformat(),
@@ -4565,7 +5579,8 @@ def predict_market_trend():
         'trend_analysis': trend_analysis,
         'actionable_signals': trade_signals,
         'portfolio_allocation': portfolio_allocation,
-        'profit_maximizing_actions': profit_actions
+        'profit_maximizing_actions': profit_actions,
+        'us_lag_free_regime': us_lag_free_regime
     })
 
 
@@ -4814,6 +5829,8 @@ def _analyze_china_ticker_realtime(ticker, orig_confidence, signal_type):
 
         expected_value = (china_confidence * potential_gain) + ((1 - china_confidence) * potential_loss)
 
+        # Add fields compatible with US model frontend display
+        # This allows the same displayRealtimeResults function to work
         return {
             'ticker': ticker,
             'signal_type': signal_type,
@@ -4821,6 +5838,20 @@ def _analyze_china_ticker_realtime(ticker, orig_confidence, signal_type):
             'change_1d': round(change_1d, 2),
             'change_5d': round(change_5d, 2),
             'change_20d': round(change_20d, 2),
+            # Fields for frontend compatibility (same as US model)
+            'rsi': round(rsi, 1),
+            'volatility': round(volatility, 1),
+            'target_5d': round(target_conservative, 2),
+            'target_10d': round(target_moderate, 2),
+            'stop_loss': round(stop_loss, 2),
+            'potential_gain_5d': round(((target_conservative - current_price) / current_price) * 100, 2),
+            'potential_gain_10d': round(((target_moderate - current_price) / current_price) * 100, 2),
+            'risk_reward': round(risk_reward, 2),
+            'confidence': round(china_confidence * 100, 1),
+            'technical_status': 'CHINA MODEL' if china_direction > 0 else 'CAUTION',
+            # Profit maximizing data for frontend Market Regime display (China-specific)
+            # Uses China transition detector for real regime data
+            'profit_maximizing': _get_china_regime_for_display(ticker, china_direction, china_confidence, hist),
             # China Model Data
             'china_model': {
                 'direction': china_direction,
@@ -4862,6 +5893,134 @@ def _analyze_china_ticker_realtime(ticker, orig_confidence, signal_type):
     except Exception as e:
         logger.error(f"[CHINA REALTIME] Error analyzing {ticker}: {e}")
         return None
+
+
+def _get_china_regime_for_display(ticker, china_direction, china_confidence, hist):
+    """
+    Get China regime data for frontend display using real China transition detector.
+    Returns data in the same format as US profit_maximizing for frontend compatibility.
+
+    FIXING2 Enhancements:
+    - Dynamic stop-loss based on volatility
+    - Trailing stops per regime (BULL:10%, NEUTRAL:8%, BEAR:5%, HIGH_VOL:3%)
+    - Stricter EV thresholds displayed
+    - Quality filter status
+    """
+    try:
+        # Use China transition detector if available
+        if CHINA_TRANSITION_AVAILABLE and CHINA_TRANSITION_DETECTOR is not None:
+            transition_result = CHINA_TRANSITION_DETECTOR.detect_transition(
+                hist,
+                current_regime='NEUTRAL'
+            )
+
+            # Map transition to regime
+            regime = 'china_neutral'
+            if transition_result.transition_type == 'TRANSITION_TO_BULL':
+                regime = 'china_bull'
+            elif transition_result.transition_type == 'TRANSITION_TO_BEAR':
+                regime = 'china_bear'
+            elif transition_result.is_transition:
+                regime = 'china_transition'
+
+            # Calculate multipliers based on transition
+            buy_mult = 1.0 + (transition_result.recommended_allocation_adjustment * 0.5)
+            sell_mult = 1.0 - (transition_result.recommended_allocation_adjustment * 0.3)
+
+            # FIXING2: Get regime-specific parameters
+            regime_params = {
+                'china_bull': {'stop_loss': 8.0, 'trailing_stop': 10.0, 'ev_threshold': 0.75, 'exit_days': 10},
+                'china_neutral': {'stop_loss': 6.0, 'trailing_stop': 8.0, 'ev_threshold': 1.0, 'exit_days': 7},
+                'china_bear': {'stop_loss': 5.0, 'trailing_stop': 5.0, 'ev_threshold': 1.25, 'exit_days': 5},
+                'china_transition': {'stop_loss': 6.0, 'trailing_stop': 8.0, 'ev_threshold': 1.0, 'exit_days': 7},
+            }
+            current_params = regime_params.get(regime, regime_params['china_neutral'])
+
+            # FIXING2: Calculate dynamic stop-loss based on volatility
+            if len(hist) >= 20:
+                volatility = hist['Close'].pct_change().std() * 100  # as percentage
+                vol_percentile = min(1.0, volatility / 5.0)  # Normalize to 0-1 (5% = high vol)
+                vol_adjustment = 1.2 - vol_percentile * 0.4
+                dynamic_stop = current_params['stop_loss'] * vol_adjustment
+                dynamic_stop = max(2.0, min(15.0, dynamic_stop))
+            else:
+                dynamic_stop = current_params['stop_loss']
+
+            return {
+                'profit_score': round(china_confidence * 100, 1),
+                'dynamic_multiplier': round(buy_mult, 3),
+                'buy_multiplier': round(buy_mult, 3),
+                'sell_multiplier': round(sell_mult, 3),
+                'recommended_position': 5.0,
+                'regime': regime,
+                'transition_phase': transition_result.transition_type.lower() if transition_result.transition_type else 'stable',
+                'profit_targets': {
+                    'target_1': 10.0,
+                    'target_2': 20.0,
+                    'target_3': 35.0,
+                },
+                # FIXING2: Dynamic stop-loss and trailing stop
+                'stop_loss_pct': round(dynamic_stop, 1),
+                'trailing_stop_pct': current_params['trailing_stop'],
+                'vix_level': 0,  # N/A for China (uses HSI instead)
+                'model': 'DeepSeek + China ML (Fixing2)',
+                'signals_detected': transition_result.signals_detected if hasattr(transition_result, 'signals_detected') else [],
+                'transition_confidence': round(transition_result.confidence * 100, 1) if hasattr(transition_result, 'confidence') else 50.0,
+                # FIXING2: Additional info for frontend
+                'fixing2_active': True,
+                'ev_threshold': current_params['ev_threshold'],
+                'exit_days': current_params['exit_days'],
+                'quality_filter': True,
+                'momentum_filter': True,
+            }
+        else:
+            # Fallback if transition detector not available
+            return {
+                'profit_score': round(china_confidence * 100, 1),
+                'dynamic_multiplier': 1.0 if china_direction > 0 else 0.8,
+                'buy_multiplier': 1.0 if china_direction > 0 else 0.8,
+                'sell_multiplier': 0.8 if china_direction > 0 else 1.0,
+                'recommended_position': 5.0,
+                'regime': 'china_market',
+                'transition_phase': 'deepseek_analysis',
+                'profit_targets': {
+                    'target_1': 10.0,
+                    'target_2': 20.0,
+                    'target_3': 35.0,
+                },
+                # FIXING2: Default values (detector not available)
+                'stop_loss_pct': 6.0,  # Neutral default
+                'trailing_stop_pct': 8.0,  # Neutral default
+                'vix_level': 0,
+                'model': 'DeepSeek + China ML (Fixing2 Fallback)',
+                'fixing2_active': True,
+                'ev_threshold': 1.0,  # Neutral default
+                'exit_days': 7,  # Neutral default
+                'quality_filter': True,
+                'momentum_filter': True,
+            }
+    except Exception as e:
+        logger.warning(f"[CHINA REGIME DISPLAY] Error getting regime for {ticker}: {e}")
+        return {
+            'profit_score': round(china_confidence * 100, 1),
+            'dynamic_multiplier': 1.0,
+            'buy_multiplier': 1.0,
+            'sell_multiplier': 0.8,
+            'recommended_position': 5.0,
+            'regime': 'china_market',
+            'transition_phase': 'unknown',
+            'profit_targets': {'target_1': 10.0, 'target_2': 20.0, 'target_3': 35.0},
+            # FIXING2: Default values (error case)
+            'stop_loss_pct': 6.0,
+            'trailing_stop_pct': 8.0,
+            'vix_level': 0,
+            'model': 'DeepSeek + China ML (Fixing2)',
+            'fixing2_active': True,
+            'ev_threshold': 1.0,
+            'exit_days': 7,
+            'quality_filter': True,
+            'momentum_filter': True,
+        }
 
 
 def _detect_china_market_regime():
@@ -5645,6 +6804,64 @@ def _analyze_ticker_realtime(ticker, orig_confidence, signal_type):
         # Use ML confidence as primary, combine with original confidence
         combined_confidence = (ml_confidence * 0.7 + orig_confidence / 100 * 0.3) * 100
 
+        # RSI Risk Adapter Enhancement (from fixing5.pdf)
+        rsi_risk_info = None
+        rsi_enhanced_stop_loss = stop_loss
+        rsi_enhanced_take_profit = target_10d
+        rsi_position_multiplier = 1.0
+        rsi_risk_level = "unknown"
+
+        if RSI_ADAPTER_AVAILABLE:
+            try:
+                rsi_adapter = create_rsi_adapter()
+                rsi_result = rsi_adapter.enhance_signal_with_rsi(
+                    ticker=ticker,
+                    signal_type=signal_type,
+                    confidence=combined_confidence / 100,  # Convert to 0-1
+                    rsi=rsi,
+                    volatility=ml_volatility,
+                    position_multiplier=1.0,
+                    stop_loss_pct=abs((stop_loss - current_price) / current_price) if stop_loss else 0.08,
+                    market_trend="unknown",
+                    strict_blocking=False,
+                )
+
+                # Update with RSI-adjusted values
+                combined_confidence = rsi_result.adjusted_confidence * 100
+                rsi_position_multiplier = rsi_result.position_multiplier
+                rsi_risk_level = rsi_result.rsi_risk_level
+
+                # Calculate RSI-enhanced stop-loss and take-profit
+                if signal_type == 'BUY':
+                    rsi_enhanced_stop_loss = current_price * (1 - rsi_result.stop_loss_pct)
+                    rsi_enhanced_take_profit = current_price * (1 + rsi_result.take_profit_pct)
+                else:
+                    rsi_enhanced_stop_loss = current_price * (1 + rsi_result.stop_loss_pct)
+                    rsi_enhanced_take_profit = current_price * (1 - rsi_result.take_profit_pct)
+
+                # Build RSI risk info for response
+                rsi_risk_info = {
+                    'rsi_risk_level': rsi_risk_level,
+                    'confidence_adjustment': f"{rsi_result.rsi_confidence_adj*100:+.1f}%",
+                    'position_multiplier': round(rsi_position_multiplier, 2),
+                    'stop_loss_pct': f"{rsi_result.stop_loss_pct*100:.1f}%",
+                    'take_profit_pct': f"{rsi_result.take_profit_pct*100:.1f}%",
+                    'should_trade': rsi_result.should_trade,
+                    'block_reason': rsi_result.block_reason,
+                }
+
+                # Add warning if RSI is extreme
+                if rsi_result.rsi_risk_level in ['extreme_oversold', 'extreme_overbought']:
+                    if rsi_result.block_reason:
+                        tech_warnings.append(f"RSI RISK: {rsi_result.block_reason}")
+                    else:
+                        tech_warnings.append(f"RSI EXTREME: {rsi_result.rsi_risk_level}")
+
+                logger.debug(f"[RSI ADAPTER] {ticker}: RSI={rsi:.1f}, risk={rsi_risk_level}, mult={rsi_position_multiplier:.2f}")
+
+            except Exception as e:
+                logger.warning(f"[RSI ADAPTER] Error for {ticker}: {e}")
+
         # Expected value calculation using ML confidence
         win_prob = combined_confidence / 100
         potential_gain = abs((target_5d - current_price) / current_price) * 100
@@ -5657,6 +6874,56 @@ def _analyze_ticker_realtime(ticker, orig_confidence, signal_type):
 
         # Get sentiment data if available
         sentiment_data = ml_result.get('sentiment', {})
+
+        # ===== NEW: FIXING7/8 Profit-Maximizing Analysis =====
+        profit_max_info = None
+        if US_PROFIT_REGIME_AVAILABLE and US_PROFIT_REGIME_CLASSIFIER is not None:
+            try:
+                # Build stock data for profit scoring
+                stock_metrics = {
+                    'ticker': ticker,
+                    '5d_return': change_5d,
+                    'volume_ratio': vol_ratio,
+                    'rsi': rsi,
+                    'volatility': volatility_pct,
+                }
+
+                # Get SPY data (use cached if available)
+                spy_data = yf.download('SPY', period='6mo', progress=False)
+                if isinstance(spy_data.columns, pd.MultiIndex):
+                    spy_data.columns = spy_data.columns.get_level_values(0)
+
+                # Get current VIX
+                vix_data = yf.download('^VIX', period='1d', progress=False)
+                if isinstance(vix_data.columns, pd.MultiIndex):
+                    vix_data.columns = vix_data.columns.get_level_values(0)
+                current_vix = float(vix_data['Close'].iloc[-1]) if len(vix_data) > 0 else 20.0
+
+                # Get profit-maximizing regime classification
+                profit_regime = US_PROFIT_REGIME_CLASSIFIER.classify_regime_with_profit(
+                    spy_data, stock_metrics, current_vix
+                )
+
+                profit_max_info = {
+                    'profit_score': round(profit_regime.profit_score, 1),
+                    'dynamic_multiplier': round(profit_regime.dynamic_multiplier, 3),
+                    'buy_multiplier': round(profit_regime.base_output.buy_multiplier, 3),
+                    'sell_multiplier': round(profit_regime.base_output.sell_multiplier, 3),
+                    'recommended_position': round(profit_regime.recommended_position_size * 100, 2),
+                    'regime': profit_regime.regime,
+                    'transition_phase': profit_regime.transition_phase.value,
+                    'profit_targets': {
+                        'target_1': round(profit_regime.profit_target_1 * 100, 1),
+                        'target_2': round(profit_regime.profit_target_2 * 100, 1),
+                        'target_3': round(profit_regime.profit_target_3 * 100, 1),
+                    },
+                    'stop_loss_pct': round(profit_regime.stop_loss * 100, 1),
+                    'trailing_stop_pct': round(profit_regime.trailing_stop * 100, 1),
+                    'vix_level': round(current_vix, 1),
+                }
+                logger.debug(f"[FIXING7/8] {ticker}: Score={profit_regime.profit_score:.1f}, Mult={profit_regime.dynamic_multiplier:.3f}x")
+            except Exception as e:
+                logger.warning(f"[FIXING7/8] Error for {ticker}: {e}")
 
         return {
             'ticker': ticker,
@@ -5709,6 +6976,14 @@ def _analyze_ticker_realtime(ticker, orig_confidence, signal_type):
                 'regime': market_context.get('regime', 'unknown'),
             },
             'sentiment': sentiment_data if sentiment_data else None,
+            # ===== NEW: RSI RISK ADAPTER (fixing5.pdf) =====
+            'rsi_risk_assessment': rsi_risk_info,
+            'rsi_enhanced_stop_loss': round(rsi_enhanced_stop_loss, 2) if rsi_enhanced_stop_loss else None,
+            'rsi_enhanced_take_profit': round(rsi_enhanced_take_profit, 2) if rsi_enhanced_take_profit else None,
+            'rsi_position_multiplier': round(rsi_position_multiplier, 2),
+            'rsi_risk_level': rsi_risk_level,
+            # ===== NEW: FIXING7/8 Profit Maximizing =====
+            'profit_maximizing': profit_max_info,
         }
     except Exception as e:
         logger.error(f"[REALTIME ML] Error analyzing {ticker}: {e}")

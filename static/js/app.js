@@ -398,6 +398,9 @@ function displayPrediction(data) {
     // Intraday chart (1-day real-time)
     displayIntradayChart(data.ticker);
 
+    // Quality Filter Checks (China Model Fixing2) - Only for China stocks
+    displayQualityFilter(data);
+
     // Always attach event listener to "Add to Watchlist" button
     const addToPortfolioBtn = document.getElementById('add-to-portfolio-btn');
     if (addToPortfolioBtn) {
@@ -421,6 +424,101 @@ function displayPrediction(data) {
     } else {
         console.error('❌ "Add to Watchlist" button not found in DOM');
     }
+}
+
+// Display Quality Filter Checks (All assets)
+function displayQualityFilter(data) {
+    const section = document.getElementById('quality-filter-section');
+    const tbody = document.getElementById('quality-filter-tbody');
+    const summary = document.getElementById('quality-filter-summary');
+
+    // Show for all stocks with quality_filter data
+    if (!data.quality_filter) {
+        section.classList.add('hidden');
+        return;
+    }
+
+    // Determine model type for display
+    const isChina = data.ticker && (
+        data.ticker.endsWith('.HK') ||
+        data.ticker.endsWith('.SS') ||
+        data.ticker.endsWith('.SZ')
+    );
+    const modelLabel = isChina ? 'China Model F2' : 'US/Intl Model';
+
+    // Update title
+    const titleEl = section.querySelector('.card-title');
+    if (titleEl) {
+        titleEl.textContent = `🔍 Quality Filter Checks (${modelLabel})`;
+    }
+
+    // Show the section
+    section.classList.remove('hidden');
+
+    const qf = data.quality_filter;
+
+    // Build table rows
+    const rows = [
+        {
+            check: 'EPS',
+            value: qf.eps?.value || 'N/A',
+            threshold: qf.eps?.threshold || '> 0',
+            result: qf.eps?.result || 'N/A',
+            pass: qf.eps?.pass
+        },
+        {
+            check: 'Debt/Equity',
+            value: qf.debt_equity?.value || 'N/A',
+            threshold: qf.debt_equity?.threshold || '< 100%',
+            result: qf.debt_equity?.result || 'N/A',
+            pass: qf.debt_equity?.pass
+        },
+        {
+            check: 'Market Cap',
+            value: qf.market_cap?.value || 'N/A',
+            threshold: qf.market_cap?.threshold || '> 1B',
+            result: qf.market_cap?.result || 'N/A',
+            pass: qf.market_cap?.pass
+        },
+        {
+            check: '2-Day Momentum',
+            value: qf.two_day_momentum?.value || 'N/A',
+            threshold: qf.two_day_momentum?.threshold || '> 1%',
+            result: qf.two_day_momentum?.result || 'N/A',
+            pass: qf.two_day_momentum?.pass
+        },
+        {
+            check: 'Volatility',
+            value: qf.volatility?.value || 'N/A',
+            threshold: qf.volatility?.threshold || '-',
+            result: qf.volatility?.result || 'N/A',
+            pass: true  // Informational only
+        }
+    ];
+
+    tbody.innerHTML = rows.map(row => {
+        let resultClass = 'result-info';
+        if (row.result === 'PASS') resultClass = 'result-pass';
+        else if (row.result === 'FAIL') resultClass = 'result-fail';
+
+        return `
+            <tr>
+                <td>${row.check}</td>
+                <td>${row.value}</td>
+                <td>${row.threshold}</td>
+                <td class="${resultClass}">${row.result}</td>
+            </tr>
+        `;
+    }).join('');
+
+    // Summary
+    const overallPass = qf.overall_pass;
+    summary.className = 'quality-filter-summary ' + (overallPass ? 'pass' : 'fail');
+    summary.innerHTML = overallPass
+        ? '✅ All Quality Checks PASSED - Stock meets Fixing2 criteria'
+        : '❌ Some Quality Checks FAILED - Stock filtered by Fixing2 criteria';
+
+    console.log('📊 Quality Filter displayed for', data.ticker, '- Overall:', overallPass ? 'PASS' : 'FAIL');
 }
 
 // Display general news feed (ONLY for analysis layer - used when viewing specific asset)
@@ -975,16 +1073,18 @@ function displayTopPicks(buyList, sellList) {
         buyContainer.innerHTML = buyList.map((item, index) => {
             const isChina = isChinaStock(item.ticker);
             const displayName = item.name && item.name !== item.ticker ? item.name : null;
+            // FIXING2: Show indicator for China stocks
+            const chinaIndicator = isChina ? '<span style="font-size:9px;color:#ff6b6b;margin-left:5px;" title="DeepSeek+ML Fixing2">F2</span>' : '';
             return `
-            <div class="pick-item buy-pick clickable" onclick="analyzeTickerDirectly('${item.ticker}')" title="Click to view ML Analysis">
+            <div class="pick-item buy-pick clickable" onclick="analyzeTickerDirectly('${item.ticker}')" title="Click to view ML Analysis${isChina ? ' (China Model Fixing2)' : ''}">
                 <div class="pick-rank">${index + 1}</div>
                 <div class="pick-info">
                     <div class="pick-info-left">
                         ${isChina && displayName ? `
-                            <div class="pick-ticker">${displayName}</div>
+                            <div class="pick-ticker">${displayName}${chinaIndicator}</div>
                             <div class="pick-name">${item.ticker}</div>
                         ` : `
-                            <div class="pick-ticker">${item.ticker}</div>
+                            <div class="pick-ticker">${item.ticker}${chinaIndicator}</div>
                             <div class="pick-name">${item.name}</div>
                         `}
                     </div>
@@ -1004,16 +1104,18 @@ function displayTopPicks(buyList, sellList) {
         sellContainer.innerHTML = sellList.map((item, index) => {
             const isChina = isChinaStock(item.ticker);
             const displayName = item.name && item.name !== item.ticker ? item.name : null;
+            // FIXING2: Show indicator for China stocks
+            const chinaIndicator = isChina ? '<span style="font-size:9px;color:#ff6b6b;margin-left:5px;" title="DeepSeek+ML Fixing2">F2</span>' : '';
             return `
-            <div class="pick-item sell-pick clickable" onclick="analyzeTickerDirectly('${item.ticker}')" title="Click to view ML Analysis">
+            <div class="pick-item sell-pick clickable" onclick="analyzeTickerDirectly('${item.ticker}')" title="Click to view ML Analysis${isChina ? ' (China Model Fixing2)' : ''}">
                 <div class="pick-rank">${index + 1}</div>
                 <div class="pick-info">
                     <div class="pick-info-left">
                         ${isChina && displayName ? `
-                            <div class="pick-ticker">${displayName}</div>
+                            <div class="pick-ticker">${displayName}${chinaIndicator}</div>
                             <div class="pick-name">${item.ticker}</div>
                         ` : `
-                            <div class="pick-ticker">${item.ticker}</div>
+                            <div class="pick-ticker">${item.ticker}${chinaIndicator}</div>
                             <div class="pick-name">${item.name}</div>
                         `}
                     </div>
@@ -1127,7 +1229,7 @@ async function runRealtimeTest() {
 
     // Handle "all" regime - not supported, need to select specific tab
     if (regime === 'all') {
-        alert('Please select a specific asset tab (Stock, Crypto, Commodity, Forex, or China) to run Real-Time Test.');
+        alert('Please select a specific asset tab (Stock, Crypto, Commodity, Forex, ETF, or China) to run Real-Time Test.');
         return;
     }
 
@@ -1219,6 +1321,9 @@ function displayRealtimeResults(data) {
     const portfolio = data.portfolio_simulation || {};
     const summary = data.summary || {};
 
+    // Get first stock's profit_maximizing for regime info (all stocks share same regime)
+    const profitMax = buyAnalysis.length > 0 && buyAnalysis[0].profit_maximizing ? buyAnalysis[0].profit_maximizing : null;
+
     let html = `
         <!-- Summary Section -->
         <div class="realtime-summary">
@@ -1241,6 +1346,185 @@ function displayRealtimeResults(data) {
                 </div>
             </div>
         </div>
+
+        <!-- Market Regime Table (Works for both US and China) -->
+        ${profitMax ? (() => {
+            const isChina = profitMax.model && profitMax.model.includes('China');
+            const borderColor = isChina ? '#ff6b6b' : '#4a9eff';
+            const headerColor = isChina ? '#ff6b6b' : '#4a9eff';
+            const regimeLabel = isChina ? 'China Regime' : 'US Regime';
+            const vixLabel = isChina ? 'HSI Index' : 'VIX';
+            const vixValue = isChina ? (profitMax.vix_level === 0 ? 'N/A (China)' : profitMax.vix_level) : (profitMax.vix_level || 'N/A');
+
+            // FIXING2: Additional China model info
+            const fixing2Active = isChina && profitMax.fixing2_active;
+            const stopLoss = profitMax.stop_loss_pct ? profitMax.stop_loss_pct.toFixed(1) + '%' : '8%';
+            const trailingStop = profitMax.trailing_stop_pct ? profitMax.trailing_stop_pct.toFixed(1) + '%' : '10%';
+            const evThreshold = profitMax.ev_threshold ? profitMax.ev_threshold.toFixed(2) : 'N/A';
+            const exitDays = profitMax.exit_days || 7;
+
+            return `
+        <div class="realtime-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid ${borderColor}; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+            <h4 style="color: ${headerColor}; margin-bottom: 15px;">📊 Market Regime ${isChina ? '(DeepSeek + China ML - Fixing2)' : '(Fixing7/8)'}</h4>
+            <table style="width: 100%; max-width: 500px; border-collapse: collapse; font-size: 14px; font-family: monospace;">
+                <thead>
+                    <tr style="border-bottom: 2px solid ${borderColor};">
+                        <th style="text-align: left; padding: 10px 15px; color: #fff;">Metric</th>
+                        <th style="text-align: left; padding: 10px 15px; color: #fff;">Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 10px 15px; color: #aaa;">${regimeLabel}</td>
+                        <td style="padding: 10px 15px; color: #fff; font-weight: bold; text-transform: uppercase;">${(profitMax.regime || 'N/A').toUpperCase().replace(/_/g, ' ')}</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 10px 15px; color: #aaa;">Phase</td>
+                        <td style="padding: 10px 15px; color: #fff;">${profitMax.transition_phase || 'N/A'}</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 10px 15px; color: #aaa;">Buy Mult</td>
+                        <td style="padding: 10px 15px; color: #fff;">${profitMax.buy_multiplier ? profitMax.buy_multiplier.toFixed(3) + 'x' : (profitMax.dynamic_multiplier ? profitMax.dynamic_multiplier.toFixed(3) + 'x' : 'N/A')}</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 10px 15px; color: #aaa;">Sell Mult</td>
+                        <td style="padding: 10px 15px; color: #fff;">${profitMax.sell_multiplier ? profitMax.sell_multiplier.toFixed(3) + 'x' : 'N/A'}</td>
+                    </tr>
+                    ${isChina ? `
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 10px 15px; color: #aaa;">Stop Loss</td>
+                        <td style="padding: 10px 15px; color: #ff6666;">${stopLoss}</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 10px 15px; color: #aaa;">Trailing Stop</td>
+                        <td style="padding: 10px 15px; color: #ffaa00;">${trailingStop}</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 10px 15px; color: #aaa;">EV Threshold</td>
+                        <td style="padding: 10px 15px; color: #00ff88;">${evThreshold}</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 10px 15px; color: #aaa;">Max Exit Days</td>
+                        <td style="padding: 10px 15px; color: #fff;">${exitDays}</td>
+                    </tr>
+                    ` : `
+                    <tr>
+                        <td style="padding: 10px 15px; color: #aaa;">${vixLabel}</td>
+                        <td style="padding: 10px 15px; color: #fff;">${vixValue}</td>
+                    </tr>
+                    `}
+                </tbody>
+            </table>
+            ${isChina && profitMax.transition_confidence ? `<p style="font-size: 11px; color: #888; margin-top: 10px;">Transition Confidence: ${profitMax.transition_confidence}%</p>` : ''}
+            ${fixing2Active ? `<p style="font-size: 11px; color: #00ff88; margin-top: 5px;">FIXING2: Quality Filter + Momentum Confirmation + Sharpe-Adjusted EV Active</p>` : ''}
+        </div>`;
+        })() : ''}
+
+        <!-- Key Observations -->
+        ${buyAnalysis.length > 0 ? (() => {
+            // Sort by profit score to find best candidates
+            const sorted = [...buyAnalysis].sort((a, b) => {
+                const scoreA = a.profit_maximizing?.profit_score || 0;
+                const scoreB = b.profit_maximizing?.profit_score || 0;
+                return scoreB - scoreA;
+            });
+
+            // Find stocks by category
+            const overbought = buyAnalysis.filter(r => r.rsi > 70);
+            const oversold = buyAnalysis.filter(r => r.rsi < 30);
+            const highVol = buyAnalysis.filter(r => r.volatility > 80);
+            const bestBuys = sorted.filter(r => r.rsi >= 30 && r.rsi <= 70 && (r.profit_maximizing?.profit_score || 0) > 50);
+            const weakSetups = sorted.filter(r => (r.profit_maximizing?.profit_score || 0) < 40);
+
+            let observations = [];
+            let obsNum = 1;
+
+            // 1. Overbought warnings first
+            if (overbought.length > 0) {
+                const ob = overbought[0];
+                const pm = ob.profit_maximizing || {};
+                observations.push(`<li style="margin-bottom: 12px;"><strong style="color:#ffaa00;">${ob.ticker}</strong> - ${pm.profit_score ? 'Highest profit score' : 'Strong signal'} but RSI ${ob.rsi.toFixed(1)} = <strong style="color:#ff6666;">Overbought warning</strong>. Wait for pullback.</li>`);
+            }
+
+            // 2. Best BUY candidates (group similar RSI stocks)
+            if (bestBuys.length > 0) {
+                const top2 = bestBuys.slice(0, 2);
+                if (top2.length >= 2) {
+                    const pm1 = top2[0].profit_maximizing || {};
+                    const pm2 = top2[1].profit_maximizing || {};
+                    observations.push(`<li style="margin-bottom: 12px;"><strong style="color:#00ff88;">${top2[0].ticker} & ${top2[1].ticker}</strong> - Best BUY candidates:<ul style="margin: 5px 0 0 20px; color: #bbb;">
+                        <li>Decent profit scores (${pm1.profit_score || 'N/A'}, ${pm2.profit_score || 'N/A'})</li>
+                        <li>RSI in healthy range (${top2[0].rsi.toFixed(0)}-${top2[1].rsi.toFixed(0)})</li>
+                        <li>${top2[0].change_5d < 0 || top2[1].change_5d < 0 ? 'Recent pullbacks = buying opportunity' : 'Momentum continues'}</li>
+                    </ul></li>`);
+                } else if (top2.length === 1) {
+                    const pm = top2[0].profit_maximizing || {};
+                    observations.push(`<li style="margin-bottom: 12px;"><strong style="color:#00ff88;">${top2[0].ticker}</strong> - Best BUY candidate. Score: ${pm.profit_score || 'N/A'}, RSI: ${top2[0].rsi.toFixed(1)} in healthy range.</li>`);
+                }
+            }
+
+            // 3. High volatility warnings
+            if (highVol.length > 0) {
+                const hv = highVol[0];
+                observations.push(`<li style="margin-bottom: 12px;"><strong style="color:#ff6666;">${hv.ticker}</strong> - High volatility (${hv.volatility.toFixed(0)}%!) with ${hv.change_5d.toFixed(2)}% 5D drop. <strong style="color:#ff6666;">High risk</strong> despite signal confidence.</li>`);
+            }
+
+            // 4. Oversold bounce opportunities
+            if (oversold.length > 0) {
+                const os = oversold[0];
+                const pm = os.profit_maximizing || {};
+                observations.push(`<li style="margin-bottom: 12px;"><strong style="color:#00ff88;">${os.ticker}</strong> - RSI ${os.rsi.toFixed(1)} = <strong style="color:#00ff88;">Oversold</strong>. Potential bounce opportunity. Score: ${pm.profit_score || 'N/A'}</li>`);
+            }
+
+            // 5. Weak setups
+            if (weakSetups.length > 0) {
+                const ws = weakSetups[0];
+                const pm = ws.profit_maximizing || {};
+                observations.push(`<li style="margin-bottom: 12px;"><strong style="color:#888;">${ws.ticker}</strong> - Weak momentum, low profit score (${pm.profit_score || 'N/A'}). Not ideal entry point.</li>`);
+            }
+
+            // If no special cases, show top stocks
+            if (observations.length === 0) {
+                sorted.slice(0, 3).forEach(r => {
+                    const pm = r.profit_maximizing || {};
+                    observations.push(`<li style="margin-bottom: 12px;"><strong>${r.ticker}</strong> - Score: ${pm.profit_score || 'N/A'}, RSI: ${r.rsi.toFixed(1)}, 5D: ${r.change_5d >= 0 ? '+' : ''}${r.change_5d.toFixed(1)}%</li>`);
+                });
+            }
+
+            return `
+        <div class="realtime-section" style="background: linear-gradient(135deg, #1a2e1a 0%, #162e16 100%); border: 1px solid #00ff88; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+            <h4 style="color: #00ff88; margin-bottom: 15px;">🔍 Key Observations</h4>
+            <ol style="margin: 0; padding-left: 25px; color: #ddd; line-height: 1.6;">
+                ${observations.join('')}
+            </ol>
+        </div>`;
+        })() : ''}
+
+        <!-- Recommended Position Sizes (Compact) -->
+        ${buyAnalysis.length > 0 ? `
+        <div class="realtime-section" style="background: rgba(40, 30, 50, 0.5); border: 1px solid #666; border-radius: 8px; padding: 12px 15px; margin-bottom: 20px;">
+            <h4 style="color: #aaa; margin-bottom: 10px; font-size: 13px;">💰 Recommended Position Sizes</h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px;">
+                ${buyAnalysis.slice(0, 8).map(r => {
+                    const pm = r.profit_maximizing || {};
+                    const posSize = pm.recommended_position ? pm.recommended_position.toFixed(1) : '5.0';
+                    let noteColor = '#888';
+                    let note = '';
+
+                    if (r.rsi > 70) {
+                        noteColor = '#ffaa00';
+                        note = ' (wait)';
+                    } else if (pm.profit_score && pm.profit_score > 60) {
+                        noteColor = '#00ff88';
+                    }
+
+                    return `<span style="background: rgba(74, 158, 255, 0.15); padding: 4px 10px; border-radius: 4px; color: ${noteColor};">
+                        <strong>${r.ticker}:</strong> ${posSize}%${note}
+                    </span>`;
+                }).join('')}
+            </div>
+        </div>
+        ` : ''}
 
         <!-- Portfolio Simulation -->
         <div class="realtime-section">
@@ -1274,29 +1558,34 @@ function displayRealtimeResults(data) {
                         <tr>
                             <th>Ticker</th>
                             <th>Price</th>
-                            <th>1D%</th>
                             <th>5D%</th>
                             <th>RSI</th>
+                            <th>Score</th>
+                            <th>Mult</th>
+                            <th>Size</th>
                             <th>Status</th>
-                            <th>5D Target</th>
-                            <th>Gain%</th>
+                            <th>Targets</th>
                             <th>R:R</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${buyAnalysis.map(r => `
+                        ${buyAnalysis.map(r => {
+                            const pm = r.profit_maximizing || {};
+                            const scoreColor = pm.profit_score > 70 ? '#00ff88' : pm.profit_score > 50 ? '#ffaa00' : '#ff6666';
+                            return `
                             <tr class="${r.technical_status.includes('STRONG') ? 'strong-signal' : ''}">
                                 <td><strong>${r.ticker}</strong></td>
                                 <td>$${r.current_price.toFixed(2)}</td>
-                                <td class="${r.change_1d >= 0 ? 'positive' : 'negative'}">${r.change_1d >= 0 ? '+' : ''}${r.change_1d.toFixed(2)}%</td>
                                 <td class="${r.change_5d >= 0 ? 'positive' : 'negative'}">${r.change_5d >= 0 ? '+' : ''}${r.change_5d.toFixed(2)}%</td>
-                                <td>${r.rsi.toFixed(1)}</td>
+                                <td style="color: ${r.rsi < 30 ? '#00ff88' : r.rsi > 70 ? '#ff4444' : '#fff'}">${r.rsi.toFixed(1)}</td>
+                                <td style="color: ${scoreColor}; font-weight: bold;">${pm.profit_score || '-'}</td>
+                                <td style="color: #4a9eff;">${pm.dynamic_multiplier ? pm.dynamic_multiplier.toFixed(2) + 'x' : '-'}</td>
+                                <td>${pm.recommended_position ? pm.recommended_position.toFixed(1) + '%' : '-'}</td>
                                 <td><span class="status-badge ${r.technical_status.toLowerCase().replace(' ', '-')}">${r.technical_status}</span></td>
-                                <td>$${r.target_5d.toFixed(2)}</td>
-                                <td class="positive">+${r.potential_gain_5d.toFixed(2)}%</td>
+                                <td style="font-size: 11px; color: #00ff88;">${pm.profit_targets ? pm.profit_targets.target_1 + '/' + pm.profit_targets.target_2 + '/' + pm.profit_targets.target_3 + '%' : '-'}</td>
                                 <td>${r.risk_reward.toFixed(2)}</td>
                             </tr>
-                        `).join('')}
+                        `}).join('')}
                     </tbody>
                 </table>
             </div>
@@ -1314,25 +1603,30 @@ function displayRealtimeResults(data) {
                             <tr>
                                 <th>Ticker</th>
                                 <th>Price</th>
-                                <th>1D%</th>
+                                <th>5D%</th>
                                 <th>RSI</th>
+                                <th>Score</th>
+                                <th>Mult</th>
                                 <th>Status</th>
-                                <th>5D Target</th>
                                 <th>Short Gain%</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${sellAnalysis.map(r => `
+                            ${sellAnalysis.map(r => {
+                                const pm = r.profit_maximizing || {};
+                                const scoreColor = pm.profit_score > 70 ? '#00ff88' : pm.profit_score > 50 ? '#ffaa00' : '#ff6666';
+                                return `
                                 <tr>
                                     <td><strong>${r.ticker}</strong></td>
                                     <td>$${r.current_price.toFixed(2)}</td>
-                                    <td class="${r.change_1d >= 0 ? 'positive' : 'negative'}">${r.change_1d >= 0 ? '+' : ''}${r.change_1d.toFixed(2)}%</td>
-                                    <td>${r.rsi.toFixed(1)}</td>
+                                    <td class="${r.change_5d >= 0 ? 'positive' : 'negative'}">${r.change_5d >= 0 ? '+' : ''}${r.change_5d.toFixed(2)}%</td>
+                                    <td style="color: ${r.rsi < 30 ? '#00ff88' : r.rsi > 70 ? '#ff4444' : '#fff'}">${r.rsi.toFixed(1)}</td>
+                                    <td style="color: ${scoreColor}; font-weight: bold;">${pm.profit_score || '-'}</td>
+                                    <td style="color: #4a9eff;">${pm.dynamic_multiplier ? pm.dynamic_multiplier.toFixed(2) + 'x' : '-'}</td>
                                     <td><span class="status-badge sell">${r.technical_status}</span></td>
-                                    <td>$${r.target_5d.toFixed(2)}</td>
                                     <td class="positive">+${Math.abs(r.potential_gain_5d).toFixed(2)}%</td>
                                 </tr>
-                            `).join('')}
+                            `}).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -1373,7 +1667,7 @@ async function predictBullBear() {
 
     // Handle "all" regime - not supported, need to select specific tab
     if (regime === 'all') {
-        alert('Please select a specific asset tab (Stock, Crypto, Commodity, Forex, or China) for Bull/Bear Prediction.');
+        alert('Please select a specific asset tab (Stock, Crypto, Commodity, Forex, ETF, or China) for Bull/Bear Prediction.');
         return;
     }
 

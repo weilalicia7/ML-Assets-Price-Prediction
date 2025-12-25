@@ -213,6 +213,11 @@ class YahooFinanceRobust:
                 else:
                     df = ticker_obj.history(period=period, interval=interval)
 
+                # FIX: Handle multi-index columns from yfinance
+                if df is not None and not df.empty and isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.droplevel(1)
+                    logger.debug(f"[YF] Flattened multi-index columns for {ticker}")
+
                 # Validate data
                 if validate:
                     is_valid, error_msg = self._validate_data(df, ticker)
