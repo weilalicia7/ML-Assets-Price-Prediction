@@ -1264,9 +1264,8 @@ async function runRealtimeTest() {
             ? '/api/top-picks/china/realtime-test'
             : `/api/top-picks/realtime-test?regime=${regime}`;
 
-        // China takes longer due to DeepSeek API + China ML model (20 min timeout)
-        // Other regimes use standard timeout (5 min)
-        const timeoutMs = regime === 'China' ? 1200000 : 300000;
+        // All regimes use 20 minute timeout to prevent frequent timeouts
+        const timeoutMs = 1200000;
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
