@@ -7,9 +7,9 @@
 }
 
 :root {
-    /* J.P. Morgan Brand Colors - Official Palette */
-    --primary: #936846;        /* Cape Palliser - JP Morgan Bronze/Gold */
-    --secondary: #503629;      /* Saddle - Dark Brown accent */
+    /* Professional Brand Colors */
+    --primary: #936846;        /* Bronze/Gold */
+    --secondary: #503629;      /* Dark Brown accent */
     --accent-gold: #c9a870;    /* Lighter gold for highlights */
     --navy: #1e40af;          /* Professional navy blue for standard actions */
     --navy-hover: #1e3a8a;    /* Darker navy for hover states */
