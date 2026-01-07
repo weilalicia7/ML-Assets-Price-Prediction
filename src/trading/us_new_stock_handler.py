@@ -29,7 +29,6 @@ Key Features:
    - Underwriter reputation scoring
    - Sector momentum context
 
-Author: Claude Code
 Last Updated: 2025-12-20 (FIXING3 - Dual Model Integration)
 """
 

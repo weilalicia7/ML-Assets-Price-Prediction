@@ -18,7 +18,6 @@ Classification:
 2. Hybrid (30-70%): Blend commodity/equity signals
 3. Commodity Dominant (70-100%): Commodity-first strategies
 
-Author: Claude Code (US/Intl Model)
 """
 
 import numpy as np

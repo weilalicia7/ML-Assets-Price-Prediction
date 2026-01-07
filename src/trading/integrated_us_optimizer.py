@@ -21,7 +21,6 @@ Integration Logic:
 This is the main entry point for the profit maximization fixes.
 US/INTL MODEL ONLY - China stocks are handled by DeepSeek model.
 
-Author: Claude Code
 """
 
 import numpy as np

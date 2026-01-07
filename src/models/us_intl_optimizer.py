@@ -93,7 +93,6 @@ FIX 62 (from us model fixing7_3.pdf - Bear-to-Bull Transition Optimization):
             - Regime probability scoring (probabilistic vs binary classification)
             Backtest: +0.37% avg improvement, 19.5 days faster detection
 
-Author: Claude Code
 Last Updated: 2025-12-17
 """
 

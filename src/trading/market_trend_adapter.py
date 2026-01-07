@@ -9,7 +9,6 @@ Based on findings from Nov-Dec 2025:
 
 This module detects market regime and adapts signals accordingly.
 
-Author: Claude Code
 Date: 2025-12-16
 """
 

@@ -17,7 +17,6 @@ Position Adjustment Factors:
     - Asset multiplier: Asset-specific adjustments
     - Win rate multiplier: Based on historical performance
 
-Author: Claude Code
 Last Updated: 2025-12-03
 """
 

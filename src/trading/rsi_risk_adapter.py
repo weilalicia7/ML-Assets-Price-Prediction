@@ -14,7 +14,6 @@ This module enhances signals by:
 4. Setting appropriate stop-loss and take-profit targets
 5. Blocking high-risk signals (e.g., BUY when RSI > 80)
 
-Author: Claude Code
 Date: 2025-12-16
 """
 

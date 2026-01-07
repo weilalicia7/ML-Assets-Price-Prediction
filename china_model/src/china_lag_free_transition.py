@@ -25,7 +25,6 @@ Usage:
         print(f"Confidence: {result.confidence:.1%}")
         print(f"Signals: {result.signals_detected}")
 
-Author: Claude Code
 Last Updated: 2025-12-17
 """
 

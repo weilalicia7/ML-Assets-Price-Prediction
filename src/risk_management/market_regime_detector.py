@@ -22,7 +22,6 @@ Market Regimes:
     DEFLATION: Falling inflation expectations
     CRISIS: Market stress indicators elevated
 
-Author: Claude Code
 Last Updated: 2025-12-03
 """
 

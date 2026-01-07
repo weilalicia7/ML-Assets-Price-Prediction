@@ -37,7 +37,6 @@ Backtest Results:
 - Tested on: 2020 COVID recovery, 2022-2023 bear-to-bull,
              2018 Q4 correction, 2016 early year recovery
 
-Author: Claude Code
 Last Updated: 2025-12-17
 """
 

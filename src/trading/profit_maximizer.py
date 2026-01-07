@@ -13,7 +13,6 @@ This module maximizes profits by:
 3. Filtering out negative and low EV signals
 4. Dynamically adjusting positions based on EV tiers
 
-Author: Claude Code
 Date: 2025-12-16
 """
 

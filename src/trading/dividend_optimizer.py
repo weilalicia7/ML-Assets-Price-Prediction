@@ -19,7 +19,6 @@ Dividend Profiles:
 3. Low/No Dividend (<2%): Standard momentum strategies
 4. Dividend Aristocrats: Special handling (consistent dividend growers)
 
-Author: Claude Code (US/Intl Model)
 """
 
 import numpy as np

@@ -16,7 +16,6 @@ Integration Points:
     - PositionAdjuster: Provides adaptive position sizing based on performance
     - MockTrade/Portfolio: SQLAlchemy models for persistence
 
-Author: Claude Code
 Last Updated: 2025-12-03
 """
 

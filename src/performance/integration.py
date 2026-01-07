@@ -14,7 +14,6 @@ This module bridges:
     - MarketRegimeDetector (src/risk_management)
     - AdaptiveBlocker (src/risk_management)
 
-Author: Claude Code
 Last Updated: 2025-12-03
 """
 

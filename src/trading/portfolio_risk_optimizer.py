@@ -15,7 +15,6 @@ This module provides:
 4. Correlation-aware position management
 5. Drawdown-based position scaling
 
-Author: Claude Code
 Date: 2025-12-16
 """
 

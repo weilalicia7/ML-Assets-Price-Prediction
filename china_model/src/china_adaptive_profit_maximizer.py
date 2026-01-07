@@ -67,7 +67,6 @@ Key Features (Fixing1 + Fixing2 + Fixing3):
     - Energy: D/E up to 2.0
     - Consumer: stricter D/E < 1.5
 
-Author: Claude Code
 Last Updated: 2025-12-20 (Fixing3 Applied - Relaxed Filters + Momentum Override)
 """
 

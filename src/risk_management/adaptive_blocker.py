@@ -22,7 +22,6 @@ Blocking Levels:
     BLOCK_SIGNAL: Signal blocked entirely
     FULL_BLOCK: Asset type blocked in current regime
 
-Author: Claude Code
 Last Updated: 2025-12-03
 """
 

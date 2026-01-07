@@ -13,7 +13,6 @@ Components:
     - AdaptiveBlocker: Blocks/reduces signals based on regime (Fixes 17 & 18)
     - PositionAdjuster: Adjusts position sizes based on regime (Fix 19)
 
-Author: Claude Code
 Last Updated: 2025-12-03
 """
 

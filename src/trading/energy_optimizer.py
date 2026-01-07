@@ -16,7 +16,6 @@ Subsectors:
 5. Midstream (KMI, WMB, ET) - Fee-based, dividend focus, rate sensitive
 6. Renewables (FSLR, ENPH, NEE) - Policy driven, tech stock behavior
 
-Author: Claude Code (US/Intl Model)
 """
 
 import numpy as np
