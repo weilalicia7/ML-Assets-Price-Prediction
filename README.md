@@ -218,12 +218,12 @@ features = create_features(data)
 print("\nEngineered Features Statistics:")
 print(features.describe())
 
-# 4. Volatility metrics
+# 4. Volatility metrics (demonstration)
 if len(features) > 100:
     # Split data for demonstration
     train_size = int(len(features) * 0.8)
-    y_true = features['next_day_direction'].iloc[train_size:].values
-    y_pred = features['next_day_direction'].iloc[train_size-1:-1].values  # Example
+    y_true = features['target'].iloc[train_size:].values
+    y_pred = features['target'].iloc[train_size-1:-1].values  # Example (shifted for demo)
 
     metrics = VolatilityMetrics()
     print("\nVolatility Analysis Metrics:")
@@ -287,7 +287,7 @@ print(f"Number of features: {len(full_features.columns)}")
 
 # Step 3: Train/Test Split
 print("\nStep 3: Splitting data (Train 70%, Val 15%, Test 15%)...")
-predictor = VolatilityPredictor(model_type='lightgbm', target_type='volatility')
+predictor = VolatilityPredictor(model_type='lightgbm')
 train_df, val_df, test_df = predictor.prepare_data(full_features)
 
 print(f"Train set: {len(train_df)} samples")
@@ -297,16 +297,21 @@ print(f"Test set: {len(test_df)} samples")
 # Step 4: Model Training
 print("\nStep 4: Training LightGBM model...")
 
+# Create target variable
+train_df = predictor.create_target(train_df, target_type='next_day_volatility')
+val_df = predictor.create_target(val_df, target_type='next_day_volatility')
+test_df = predictor.create_target(test_df, target_type='next_day_volatility')
+
 # Prepare features and target
-feature_cols = [col for col in full_features.columns if col not in ['next_day_direction', 'Date', 'Ticker']]
+feature_cols = [col for col in full_features.columns if col not in ['next_day_direction', 'Date', 'Ticker', 'target_volatility']]
 X_train = train_df[feature_cols]
-y_train = predictor.create_target(train_df, target_type='volatility')
+y_train = train_df['target_volatility']
 
 X_val = val_df[feature_cols]
-y_val = predictor.create_target(val_df, target_type='volatility')
+y_val = val_df['target_volatility']
 
 X_test = test_df[feature_cols]
-y_test = predictor.create_target(test_df, target_type='volatility')
+y_test = test_df['target_volatility']
 
 # Train the model
 model = predictor.train_lightgbm(X_train, y_train, X_val, y_val)
@@ -325,9 +330,9 @@ print(f"MAPE: {test_metrics['mape']:.2f}%")
 
 # Feature importance
 print("\n=== TOP 10 MOST IMPORTANT FEATURES ===")
-importance = predictor.get_feature_importance()
-for i, (feature, score) in enumerate(importance[:10], 1):
-    print(f"{i}. {feature}: {score:.4f}")
+importance = predictor.get_feature_importance(top_n=10)
+for i, (idx, row) in enumerate(importance.iterrows(), 1):
+    print(f"{i}. {row['feature']}: {row['importance']:.4f}")
 
 print("\n=== Training and evaluation complete ===")
 ```
@@ -431,16 +436,21 @@ def main():
     train_df, val_df, test_df = predictor.prepare_data(full_features)
     print(f"✓ Train: {len(train_df)} | Val: {len(val_df)} | Test: {len(test_df)}")
 
+    # Create target variable
+    train_df = predictor.create_target(train_df, target_type='next_day_volatility')
+    val_df = predictor.create_target(val_df, target_type='next_day_volatility')
+    test_df = predictor.create_target(test_df, target_type='next_day_volatility')
+
     # Prepare features
     feature_cols = [col for col in full_features.columns
-                   if col not in ['next_day_direction', 'Date', 'Ticker']]
+                   if col not in ['next_day_direction', 'Date', 'Ticker', 'target_volatility']]
 
     X_train = train_df[feature_cols]
-    y_train = predictor.create_target(train_df)
+    y_train = train_df['target_volatility']
     X_val = val_df[feature_cols]
-    y_val = predictor.create_target(val_df)
+    y_val = val_df['target_volatility']
     X_test = test_df[feature_cols]
-    y_test = predictor.create_target(test_df)
+    y_test = test_df['target_volatility']
 
     # Train
     print("✓ Training model...")

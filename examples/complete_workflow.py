@@ -74,16 +74,21 @@ def main():
     train_df, val_df, test_df = predictor.prepare_data(full_features)
     print(f"✓ Train: {len(train_df)} | Val: {len(val_df)} | Test: {len(test_df)}")
 
+    # Create target variable
+    train_df = predictor.create_target(train_df, target_type='next_day_volatility')
+    val_df = predictor.create_target(val_df, target_type='next_day_volatility')
+    test_df = predictor.create_target(test_df, target_type='next_day_volatility')
+
     # Prepare features
     feature_cols = [col for col in full_features.columns
-                   if col not in ['next_day_direction', 'Date', 'Ticker']]
+                   if col not in ['next_day_direction', 'Date', 'Ticker', 'target_volatility']]
 
     X_train = train_df[feature_cols]
-    y_train = predictor.create_target(train_df)
+    y_train = train_df['target_volatility']
     X_val = val_df[feature_cols]
-    y_val = predictor.create_target(val_df)
+    y_val = val_df['target_volatility']
     X_test = test_df[feature_cols]
-    y_test = predictor.create_target(test_df)
+    y_test = test_df['target_volatility']
 
     # Train
     print("✓ Training model...")

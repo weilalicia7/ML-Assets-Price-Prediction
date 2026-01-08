@@ -48,12 +48,12 @@ features = create_features(data)
 print("\nEngineered Features Statistics:")
 print(features.describe())
 
-# 4. Volatility metrics
+# 4. Volatility metrics (demonstration)
 if len(features) > 100:
     # Split data for demonstration
     train_size = int(len(features) * 0.8)
-    y_true = features['next_day_direction'].iloc[train_size:].values
-    y_pred = features['next_day_direction'].iloc[train_size-1:-1].values  # Example
+    y_true = features['target'].iloc[train_size:].values
+    y_pred = features['target'].iloc[train_size-1:-1].values  # Example (shifted for demo)
 
     metrics = VolatilityMetrics()
     print("\nVolatility Analysis Metrics:")
