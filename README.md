@@ -194,18 +194,25 @@ class VolatilityMetrics:
     # Returns: high_vol_mae, low_vol_mae, volatility_regime_accuracy
 ```
 
-**How to use:**
+**How to use (from actual codebase `src/evaluation/metrics.py`):**
 ```python
 from src.evaluation.metrics import VolatilityMetrics
-import numpy as np
+from src.models.ensemble_model import EnsemblePredictor
 
-# Example usage
-y_true = np.array([...])  # Actual values
-y_pred = np.array([...])  # Predicted values
+# After training a model and getting predictions (see base_models.py example)
+# y_test and y_pred are numpy arrays from test set
 
-metrics = VolatilityMetrics()
-stats = metrics.calculate_all_metrics(y_true, y_pred)
-print(stats)  # Prints all descriptive statistics
+# Calculate all metrics
+metrics_evaluator = VolatilityMetrics()
+metrics_evaluator.print_metrics_report(y_test, y_pred, dataset_name="Test")
+
+# Or get metrics as dictionary
+stats = metrics_evaluator.calculate_all_metrics(y_test, y_pred)
+print(f"MAE: {stats['mae']:.4f}")
+print(f"RMSE: {stats['rmse']:.4f}")
+print(f"R²: {stats['r2']:.4f}")
+print(f"MAPE: {stats['mape']:.2f}%")
+print(f"Directional Accuracy: {stats['directional_accuracy']:.2f}%")
 ```
 
 ---
@@ -238,22 +245,37 @@ class VolatilityPredictor:
     # Returns feature importance rankings
 ```
 
-**How to use:**
+**How to use (from actual codebase `src/models/base_models.py`):**
 ```python
+from src.data.fetch_data import DataFetcher
+from src.features.technical_features import TechnicalFeatureEngineer
+from src.features.volatility_features import VolatilityFeatureEngineer
 from src.models.base_models import VolatilityPredictor
 
-# Initialize predictor
+# Step 1: Fetch data
+fetcher = DataFetcher(['AAPL'], start_date='2022-01-01')
+data = fetcher.fetch_all()
+aapl = data[data['Ticker'] == 'AAPL'].copy()
+
+# Step 2: Engineer features
+tech_eng = TechnicalFeatureEngineer()
+aapl = tech_eng.add_all_features(aapl)
+
+vol_eng = VolatilityFeatureEngineer()
+aapl = vol_eng.add_all_features(aapl)
+
+# Step 3: Create target
 predictor = VolatilityPredictor(model_type='lightgbm')
+aapl = predictor.create_target(aapl, target_type='next_day_volatility')
 
-# Split data (time-series aware)
-train_df, val_df, test_df = predictor.prepare_data(features_df)
+# Step 4: Prepare train/val/test split (time-series aware)
+train_df, val_df, test_df = predictor.prepare_data(aapl)
 
-# Create target
-train_df = predictor.create_target(train_df, target_type='next_day_volatility')
-val_df = predictor.create_target(val_df, target_type='next_day_volatility')
-test_df = predictor.create_target(test_df, target_type='next_day_volatility')
+# Step 5: Select features and prepare X, y
+exclude_cols = ['Ticker', 'AssetType', 'target_volatility', 'volatility_regime',
+                'Open', 'High', 'Low', 'Close', 'Volume']
+feature_cols = [col for col in train_df.columns if col not in exclude_cols]
 
-# Prepare features and target
 X_train = train_df[feature_cols]
 y_train = train_df['target_volatility']
 X_val = val_df[feature_cols]
@@ -261,12 +283,15 @@ y_val = val_df['target_volatility']
 X_test = test_df[feature_cols]
 y_test = test_df['target_volatility']
 
-# Train model
-model = predictor.train_lightgbm(X_train, y_train, X_val, y_val)
+# Step 6: Train model
+predictor.train_lightgbm(X_train, y_train, X_val, y_val)
 
-# Evaluate on test set
+# Step 7: Evaluate on test set
 test_metrics = predictor.evaluate(X_test, y_test)
-print(test_metrics)  # MAE, RMSE, R², MAPE
+print(f"MAE: {test_metrics['mae']:.6f}")
+print(f"RMSE: {test_metrics['rmse']:.6f}")
+print(f"R²: {test_metrics['r2']:.4f}")
+print(f"MAPE: {test_metrics['mape']:.2f}%")
 ```
 
 ---
@@ -290,15 +315,15 @@ class DataFetcher:
     # Fetches all tickers, combines into single DataFrame with 'Ticker' column
 ```
 
-**Feature Engineering:** `src/features/feature_engineering.py`
+**Feature Engineering (Basic):** `src/features/feature_engineering.py`
 
-**What it does:** Creates 15 base features from raw OHLC data, handles missing values, normalizes features.
+**What it does:** Creates 15 base features from raw OHLC data. Used in `EnsemblePredictor` for lightweight feature engineering.
 
 **Key function:**
 ```python
 def create_features(data) -> DataFrame:
     """
-    Creates 15 technical features:
+    Creates 15 basic technical features:
     - Price features: returns, log_returns, high_low_ratio, close_open_ratio, close_vs_high
     - Moving averages: sma_5, sma_20, price_vs_sma5, price_vs_sma20, momentum_5
     - Volatility features: volatility_5, volatility_20, volatility_ratio
@@ -308,6 +333,8 @@ def create_features(data) -> DataFrame:
     Returns DataFrame with features and drops NaN values from rolling calculations.
     """
 ```
+
+**Note:** For production models, use `TechnicalFeatureEngineer` (60+ features) instead of this basic version.
 
 **Advanced Features:** `src/features/technical_features.py`
 
@@ -321,23 +348,28 @@ class TechnicalFeatureEngineer:
     # Automatically adjusts window sizes for short time series
 ```
 
-**How to use preprocessing:**
+**How to use preprocessing (from actual codebase `src/features/technical_features.py`):**
 ```python
 from src.data.fetch_data import DataFetcher
-from src.features.feature_engineering import create_features
 from src.features.technical_features import TechnicalFeatureEngineer
 
-# 1. Fetch data
-fetcher = DataFetcher(tickers=['AAPL'], start_date='2020-01-01')
-raw_data = fetcher.fetch_all()
+# 1. Fetch raw OHLCV data
+fetcher = DataFetcher(['AAPL'], start_date='2022-01-01')
+data = fetcher.fetch_all()
+aapl_data = data[data['Ticker'] == 'AAPL'].copy()
 
-# 2. Create base features
-base_features = create_features(raw_data)
+# 2. Add technical features directly to raw data
+# TechnicalFeatureEngineer works on raw OHLCV data (Open, High, Low, Close, Volume)
+engineer = TechnicalFeatureEngineer()
+aapl_data = engineer.add_all_features(aapl_data)
 
-# 3. Add advanced technical features
-tech_engineer = TechnicalFeatureEngineer()
-full_features = tech_engineer.add_all_features(base_features)
-full_features = full_features.dropna()  # Remove NaN from rolling windows
+# The engineer automatically:
+# - Creates 60+ technical indicators (RSI, MACD, Bollinger Bands, etc.)
+# - Adapts window sizes based on data length
+# - Handles NaN values from rolling calculations
+
+print(f"Features added: {len(engineer.get_feature_names())}")
+# Output: Features added: 60+
 ```
 
 ---
@@ -351,10 +383,31 @@ full_features = full_features.dropna()  # Remove NaN from rolling windows
 | **(2) Train/Test Split** | `src/models/base_models.py` | `VolatilityPredictor.prepare_data()` |
 | **(2) Model Evaluation** | `src/models/base_models.py` | `VolatilityPredictor.evaluate()` |
 | **(3) Data Fetching** | `src/data/fetch_data.py` | `DataFetcher.fetch_all()` |
-| **(3) Feature Engineering** | `src/features/feature_engineering.py` | `create_features()` |
-| **(3) Advanced Features** | `src/features/technical_features.py` | `TechnicalFeatureEngineer.add_all_features()` |
+| **(3) Feature Engineering (Basic)** | `src/features/feature_engineering.py` | `create_features()` (15 features) |
+| **(3) Feature Engineering (Production)** | `src/features/technical_features.py` | `TechnicalFeatureEngineer.add_all_features()` (60+ features) |
+| **(3) Volatility Features** | `src/features/volatility_features.py` | `VolatilityFeatureEngineer.add_all_features()` |
 
-All code is production-ready and actively used in the web application (`webapp.py`).
+**All code is production-ready.** See the `main()` functions in each file for complete working examples that can be run directly.
+
+### Running the Examples Directly
+
+Each key file has a working `main()` function that demonstrates the complete workflow:
+
+```bash
+# Train a volatility prediction model (complete workflow)
+python -m src.models.base_models
+
+# Test evaluation metrics
+python -m src.evaluation.metrics
+
+# Test feature engineering
+python -m src.features.technical_features
+
+# Test data fetching
+python -m src.data.fetch_data
+```
+
+These examples are the **actual production code** extracted from the main() functions in each file.
 
 ---
 
