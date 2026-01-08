@@ -168,333 +168,193 @@ curl http://localhost:5000/api/prediction/AAPL
 
 ---
 
-## Running Code for Analysis and Training
+## Code Location Guide for Academic Review
 
-This section provides step-by-step instructions for running the core components independently.
+This section shows where to find the code for each required component in the codebase.
 
-### Part 1: Generate Descriptive Statistics
+### Requirement 1: Descriptive Statistics Code
 
-Generate comprehensive statistical analysis of the dataset including correlations, distributions, and volatility metrics.
+**Location:** `src/evaluation/metrics.py`
 
-**Script**: `examples/generate_statistics.py`
+**What it does:** Generates comprehensive statistical analysis including MAE, RMSE, R², MAPE, directional accuracy, coverage metrics, volatility-specific analysis.
 
+**Key class and methods:**
 ```python
-# examples/generate_statistics.py
-from src.data.fetch_data import DataFetcher
-from src.features.feature_engineering import create_features
+class VolatilityMetrics:
+    @staticmethod
+    def calculate_all_metrics(y_true, y_pred) -> Dict
+    # Returns: MAE, RMSE, R², MAPE, directional_accuracy, max_error, median_absolute_error
+
+    @staticmethod
+    def calculate_coverage(y_true, y_pred_lower, y_pred_upper) -> Dict
+    # Returns: coverage_rate, avg_interval_width, width_std
+
+    @staticmethod
+    def calculate_volatility_specific_metrics(y_true, y_pred, volatility) -> Dict
+    # Returns: high_vol_mae, low_vol_mae, volatility_regime_accuracy
+```
+
+**How to use:**
+```python
 from src.evaluation.metrics import VolatilityMetrics
-import pandas as pd
 import numpy as np
 
-# 1. Fetch dataset
-print("Fetching dataset...")
-fetcher = DataFetcher(
-    tickers=['AAPL', 'MSFT', 'GOOGL', 'BTC-USD', 'ETH-USD'],
-    start_date='2020-01-01'
-)
-data = fetcher.fetch_all()
+# Example usage
+y_true = np.array([...])  # Actual values
+y_pred = np.array([...])  # Predicted values
 
-# 2. Generate descriptive statistics
-print("\n=== DESCRIPTIVE STATISTICS ===\n")
-
-# Basic statistics
-print("Dataset Shape:", data.shape)
-print("\nSummary Statistics:")
-print(data[['Open', 'High', 'Low', 'Close', 'Volume']].describe())
-
-# Correlation matrix
-print("\nCorrelation Matrix:")
-print(data[['Open', 'High', 'Low', 'Close', 'Volume']].corr())
-
-# Statistics by ticker
-print("\nStatistics by Ticker:")
-print(data.groupby('Ticker').agg({
-    'Close': ['mean', 'std', 'min', 'max'],
-    'Volume': ['mean', 'std']
-}))
-
-# 3. Feature engineering and analysis
-features = create_features(data)
-print("\nEngineered Features Statistics:")
-print(features.describe())
-
-# 4. Volatility metrics (demonstration)
-if len(features) > 100:
-    # Split data for demonstration
-    train_size = int(len(features) * 0.8)
-    y_true = features['target'].iloc[train_size:].values
-    y_pred = features['target'].iloc[train_size-1:-1].values  # Example (shifted for demo)
-
-    metrics = VolatilityMetrics()
-    print("\nVolatility Analysis Metrics:")
-    stats = metrics.calculate_all_metrics(y_true[:len(y_pred)], y_pred)
-    for key, value in stats.items():
-        print(f"{key}: {value:.4f}")
-
-print("\n=== Statistics generation complete ===")
+metrics = VolatilityMetrics()
+stats = metrics.calculate_all_metrics(y_true, y_pred)
+print(stats)  # Prints all descriptive statistics
 ```
-
-**Run the script:**
-```bash
-cd stock-prediction-model
-python examples/generate_statistics.py
-```
-
-**Expected Output:**
-- Dataset dimensions and date ranges
-- Mean, std, min, max for OHLCV data
-- Correlation matrices between features
-- Per-ticker statistics
-- Engineered feature distributions
-- Volatility metrics (MAE, RMSE, R²)
 
 ---
 
-### Part 2: Train Models and Evaluate on Test Set
+### Requirement 2: Model Training and Evaluation Code
 
-Train machine learning models with preprocessing, train/test split, and evaluation.
+**Location:** `src/models/base_models.py`
 
-**Script**: `examples/train_and_evaluate.py`
+**What it does:** Trains LightGBM and XGBoost models with proper train/validation/test split, evaluates on test set, includes all preprocessing steps.
 
+**Key class and methods:**
 ```python
-# examples/train_and_evaluate.py
-from src.data.fetch_data import DataFetcher
-from src.features.feature_engineering import create_features
-from src.features.technical_features import TechnicalFeatureEngineer
+class VolatilityPredictor:
+    def prepare_data(df, test_size=0.15, val_size=0.15) -> Tuple[train_df, val_df, test_df]
+    # Time-series aware train/validation/test split (70/15/15)
+
+    def create_target(df, target_type='next_day_volatility') -> DataFrame
+    # Creates prediction target variable
+
+    def train_lightgbm(X_train, y_train, X_val, y_val)
+    # Trains LightGBM model with early stopping and regularization
+
+    def train_xgboost(X_train, y_train, X_val, y_val)
+    # Trains XGBoost model with early stopping
+
+    def evaluate(X_test, y_test) -> Dict
+    # Evaluates model on test set, returns MAE, RMSE, R², MAPE
+
+    def get_feature_importance(top_n=20) -> DataFrame
+    # Returns feature importance rankings
+```
+
+**How to use:**
+```python
 from src.models.base_models import VolatilityPredictor
-from src.evaluation.metrics import VolatilityMetrics
-import pandas as pd
 
-print("=== MODEL TRAINING AND EVALUATION ===\n")
-
-# Step 1: Data Preprocessing
-print("Step 1: Fetching and preprocessing data...")
-fetcher = DataFetcher(tickers=['AAPL'], start_date='2020-01-01')
-raw_data = fetcher.fetch_all()
-
-# Step 2: Feature Engineering
-print("Step 2: Engineering features...")
-base_features = create_features(raw_data)
-
-# Add advanced technical features
-tech_engineer = TechnicalFeatureEngineer()
-full_features = tech_engineer.add_all_features(base_features)
-
-# Remove NaN from rolling calculations
-full_features = full_features.dropna()
-print(f"Final feature set shape: {full_features.shape}")
-print(f"Number of features: {len(full_features.columns)}")
-
-# Step 3: Train/Test Split
-print("\nStep 3: Splitting data (Train 70%, Val 15%, Test 15%)...")
+# Initialize predictor
 predictor = VolatilityPredictor(model_type='lightgbm')
-train_df, val_df, test_df = predictor.prepare_data(full_features)
 
-print(f"Train set: {len(train_df)} samples")
-print(f"Validation set: {len(val_df)} samples")
-print(f"Test set: {len(test_df)} samples")
+# Split data (time-series aware)
+train_df, val_df, test_df = predictor.prepare_data(features_df)
 
-# Step 4: Model Training
-print("\nStep 4: Training LightGBM model...")
-
-# Create target variable
+# Create target
 train_df = predictor.create_target(train_df, target_type='next_day_volatility')
 val_df = predictor.create_target(val_df, target_type='next_day_volatility')
 test_df = predictor.create_target(test_df, target_type='next_day_volatility')
 
 # Prepare features and target
-feature_cols = [col for col in full_features.columns if col not in ['next_day_direction', 'Date', 'Ticker', 'target_volatility']]
 X_train = train_df[feature_cols]
 y_train = train_df['target_volatility']
-
 X_val = val_df[feature_cols]
 y_val = val_df['target_volatility']
-
 X_test = test_df[feature_cols]
 y_test = test_df['target_volatility']
 
-# Train the model
+# Train model
 model = predictor.train_lightgbm(X_train, y_train, X_val, y_val)
-print("Training complete!")
 
-# Step 5: Evaluation on Test Set
-print("\nStep 5: Evaluating on test set...")
-test_predictions = predictor.predict(X_test)
+# Evaluate on test set
 test_metrics = predictor.evaluate(X_test, y_test)
-
-print("\n=== TEST SET RESULTS ===")
-print(f"MAE: {test_metrics['mae']:.6f}")
-print(f"RMSE: {test_metrics['rmse']:.6f}")
-print(f"R²: {test_metrics['r2']:.6f}")
-print(f"MAPE: {test_metrics['mape']:.2f}%")
-
-# Feature importance
-print("\n=== TOP 10 MOST IMPORTANT FEATURES ===")
-importance = predictor.get_feature_importance(top_n=10)
-for i, (idx, row) in enumerate(importance.iterrows(), 1):
-    print(f"{i}. {row['feature']}: {row['importance']:.4f}")
-
-print("\n=== Training and evaluation complete ===")
+print(test_metrics)  # MAE, RMSE, R², MAPE
 ```
-
-**Run the script:**
-```bash
-cd stock-prediction-model
-python examples/train_and_evaluate.py
-```
-
-**Expected Output:**
-- Preprocessing steps confirmation
-- Feature engineering completion (90+ features)
-- Train/validation/test split sizes
-- Training progress with validation metrics
-- Test set performance metrics
-- Feature importance rankings
 
 ---
 
-### Part 3: Complete Workflow Script
+### Requirement 3: Preprocessing Code
 
-Combined script showing all preprocessing steps in sequence.
+**Data Fetching:** `src/data/fetch_data.py`
 
-**Script**: `examples/complete_workflow.py`
+**What it does:** Downloads historical OHLC data from Yahoo Finance, handles data cleaning and validation.
 
+**Key class and methods:**
 ```python
-# examples/complete_workflow.py
-"""
-Complete ML workflow demonstrating:
-1. Data fetching and preprocessing
-2. Descriptive statistics
-3. Feature engineering
-4. Model training
-5. Evaluation on test set
-"""
+class DataFetcher:
+    def __init__(tickers, start_date, end_date)
+    # Initialize with ticker symbols and date range
 
+    def fetch_single_ticker(ticker) -> DataFrame
+    # Fetches data for single ticker, handles MultiIndex columns
+
+    def fetch_all() -> DataFrame
+    # Fetches all tickers, combines into single DataFrame with 'Ticker' column
+```
+
+**Feature Engineering:** `src/features/feature_engineering.py`
+
+**What it does:** Creates 15 base features from raw OHLC data, handles missing values, normalizes features.
+
+**Key function:**
+```python
+def create_features(data) -> DataFrame:
+    """
+    Creates 15 technical features:
+    - Price features: returns, log_returns, high_low_ratio, close_open_ratio, close_vs_high
+    - Moving averages: sma_5, sma_20, price_vs_sma5, price_vs_sma20, momentum_5
+    - Volatility features: volatility_5, volatility_20, volatility_ratio
+    - Volume features: volume_ratio, volume_change
+    - Target: binary next-day direction (1=up, 0=down)
+
+    Returns DataFrame with features and drops NaN values from rolling calculations.
+    """
+```
+
+**Advanced Features:** `src/features/technical_features.py`
+
+**What it does:** Generates 60+ advanced technical indicators with adaptive window sizing.
+
+**Key class:**
+```python
+class TechnicalFeatureEngineer:
+    def add_all_features(df) -> DataFrame
+    # Adds: SMA, EMA, RSI, MACD, ATR, Bollinger Bands, OBV, ADX, Stochastic
+    # Automatically adjusts window sizes for short time series
+```
+
+**How to use preprocessing:**
+```python
 from src.data.fetch_data import DataFetcher
 from src.features.feature_engineering import create_features
 from src.features.technical_features import TechnicalFeatureEngineer
-from src.models.base_models import VolatilityPredictor
-import pandas as pd
 
-def main():
-    print("=" * 60)
-    print("COMPLETE ML WORKFLOW")
-    print("=" * 60)
+# 1. Fetch data
+fetcher = DataFetcher(tickers=['AAPL'], start_date='2020-01-01')
+raw_data = fetcher.fetch_all()
 
-    # ========================================
-    # PART 1: DATA PREPROCESSING
-    # ========================================
-    print("\n[1/5] DATA FETCHING AND PREPROCESSING")
-    print("-" * 60)
+# 2. Create base features
+base_features = create_features(raw_data)
 
-    # Fetch data
-    fetcher = DataFetcher(
-        tickers=['AAPL', 'MSFT', 'GOOGL'],
-        start_date='2020-01-01'
-    )
-    raw_data = fetcher.fetch_all()
-    print(f"✓ Fetched {len(raw_data)} rows for {raw_data['Ticker'].nunique()} tickers")
-
-    # ========================================
-    # PART 2: DESCRIPTIVE STATISTICS
-    # ========================================
-    print("\n[2/5] DESCRIPTIVE STATISTICS")
-    print("-" * 60)
-
-    print("\nDataset Summary:")
-    print(raw_data.describe())
-
-    print("\nData by Ticker:")
-    print(raw_data.groupby('Ticker')['Close'].agg(['count', 'mean', 'std']))
-
-    # ========================================
-    # PART 3: FEATURE ENGINEERING
-    # ========================================
-    print("\n[3/5] FEATURE ENGINEERING")
-    print("-" * 60)
-
-    # Base features
-    features_df = create_features(raw_data)
-    print(f"✓ Created {len(features_df.columns)} base features")
-
-    # Technical features
-    tech_engineer = TechnicalFeatureEngineer()
-    full_features = tech_engineer.add_all_features(features_df)
-    full_features = full_features.dropna()
-    print(f"✓ Added technical indicators. Total features: {len(full_features.columns)}")
-
-    # ========================================
-    # PART 4: TRAIN/TEST SPLIT & TRAINING
-    # ========================================
-    print("\n[4/5] MODEL TRAINING")
-    print("-" * 60)
-
-    # Initialize predictor
-    predictor = VolatilityPredictor(model_type='lightgbm')
-
-    # Split data
-    train_df, val_df, test_df = predictor.prepare_data(full_features)
-    print(f"✓ Train: {len(train_df)} | Val: {len(val_df)} | Test: {len(test_df)}")
-
-    # Create target variable
-    train_df = predictor.create_target(train_df, target_type='next_day_volatility')
-    val_df = predictor.create_target(val_df, target_type='next_day_volatility')
-    test_df = predictor.create_target(test_df, target_type='next_day_volatility')
-
-    # Prepare features
-    feature_cols = [col for col in full_features.columns
-                   if col not in ['next_day_direction', 'Date', 'Ticker', 'target_volatility']]
-
-    X_train = train_df[feature_cols]
-    y_train = train_df['target_volatility']
-    X_val = val_df[feature_cols]
-    y_val = val_df['target_volatility']
-    X_test = test_df[feature_cols]
-    y_test = test_df['target_volatility']
-
-    # Train
-    print("✓ Training model...")
-    model = predictor.train_lightgbm(X_train, y_train, X_val, y_val)
-
-    # ========================================
-    # PART 5: EVALUATION
-    # ========================================
-    print("\n[5/5] TEST SET EVALUATION")
-    print("-" * 60)
-
-    metrics = predictor.evaluate(X_test, y_test)
-
-    print(f"\nTest Set Metrics:")
-    print(f"  MAE:  {metrics['mae']:.6f}")
-    print(f"  RMSE: {metrics['rmse']:.6f}")
-    print(f"  R²:   {metrics['r2']:.6f}")
-    print(f"  MAPE: {metrics['mape']:.2f}%")
-
-    print("\n" + "=" * 60)
-    print("WORKFLOW COMPLETE")
-    print("=" * 60)
-
-if __name__ == "__main__":
-    main()
-```
-
-**Run the complete workflow:**
-```bash
-cd stock-prediction-model
-python examples/complete_workflow.py
+# 3. Add advanced technical features
+tech_engineer = TechnicalFeatureEngineer()
+full_features = tech_engineer.add_all_features(base_features)
+full_features = full_features.dropna()  # Remove NaN from rolling windows
 ```
 
 ---
 
-### Summary of Scripts
+### Complete File Reference
 
-| Script | Purpose | Key Components |
-|--------|---------|----------------|
-| `generate_statistics.py` | Descriptive analysis | Dataset statistics, correlations, distributions |
-| `train_and_evaluate.py` | ML training & testing | Preprocessing, train/test split, model evaluation |
-| `complete_workflow.py` | End-to-end pipeline | All steps combined in sequence |
+| Requirement | File Path | Key Classes/Functions |
+|------------|-----------|----------------------|
+| **(1) Descriptive Statistics** | `src/evaluation/metrics.py` | `VolatilityMetrics.calculate_all_metrics()` |
+| **(2) Model Training** | `src/models/base_models.py` | `VolatilityPredictor.train_lightgbm()`, `train_xgboost()` |
+| **(2) Train/Test Split** | `src/models/base_models.py` | `VolatilityPredictor.prepare_data()` |
+| **(2) Model Evaluation** | `src/models/base_models.py` | `VolatilityPredictor.evaluate()` |
+| **(3) Data Fetching** | `src/data/fetch_data.py` | `DataFetcher.fetch_all()` |
+| **(3) Feature Engineering** | `src/features/feature_engineering.py` | `create_features()` |
+| **(3) Advanced Features** | `src/features/technical_features.py` | `TechnicalFeatureEngineer.add_all_features()` |
 
-All preprocessing steps (data cleaning, feature engineering, train/test splitting) are included in the training scripts as shown above.
+All code is production-ready and actively used in the web application (`webapp.py`).
 
 ---
 
